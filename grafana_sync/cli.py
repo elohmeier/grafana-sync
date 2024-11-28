@@ -69,6 +69,15 @@ def create_grafana_client(
     help="Grafana URL",
 )
 @click.option(
+    "--log-level",
+    envvar="LOG_LEVEL",
+    type=click.Choice(
+        ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
+    ),
+    default="INFO",
+    help="Set logging level",
+)
+@click.option(
     "--api-key",
     envvar="GRAFANA_API_KEY",
     help="Grafana API key for token authentication",
@@ -90,9 +99,10 @@ def cli(
     api_key: str | None,
     username: str | None,
     password: str | None,
+    log_level: str,
 ):
     """Sync Grafana dashboards and folders."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=getattr(logging, log_level.upper()))
     ctx.obj = create_grafana_client(url, api_key, username, password)
 
 
