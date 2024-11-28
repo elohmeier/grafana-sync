@@ -101,11 +101,14 @@ class GrafanaSync:
         """Get all dashboard UIDs in a folder (and optionally its subfolders)."""
         dashboard_uids = set()
 
-        for _, _, dashboards in walk(
-            grafana, folder_uid, recursive, include_dashboards=True
-        ):
-            for dashboard in dashboards:
-                dashboard_uids.add(dashboard["uid"])
+        try:
+            for _, _, dashboards in walk(
+                grafana, folder_uid, recursive, include_dashboards=True
+            ):
+                for dashboard in dashboards:
+                    dashboard_uids.add(dashboard["uid"])
+        except Exception as e:
+            logger.warning("Failed to get dashboards for folder %s: %s", folder_uid, e)
 
         return dashboard_uids
 
