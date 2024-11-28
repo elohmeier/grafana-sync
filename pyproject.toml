@@ -1,0 +1,26 @@
+[project]
+name = "grafana-sync"
+version = "0.1"
+description = "Sync Grafana dashboards and folders"
+readme = "README.md"
+authors = [{ name = "Enno Richter" }]
+license = { text = "Apache-2.0" }
+requires-python = ">=3.8"
+classifiers = ["License :: OSI Approved :: Apache Software License"]
+dependencies = ["click>=8.1.7", "grafana-client>=4.2.0", "rich>=13.9.4"]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project.urls]
+Homepage = "https://github.com/elohmeier/grafana-sync"
+Changelog = "https://github.com/elohmeier/grafana-sync/releases"
+Issues = "https://github.com/elohmeier/grafana-sync/issues"
+CI = "https://github.com/elohmeier/grafana-sync/actions"
+
+[project.scripts]
+grafana-sync = "grafana_sync.cli:cli"
+
+[project.optional-dependencies]
+test = ["pytest"]
