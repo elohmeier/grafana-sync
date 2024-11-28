@@ -5,7 +5,7 @@ description = "Sync Grafana dashboards and folders"
 readme = "README.md"
 authors = [{ name = "Enno Richter" }]
 license = { text = "Apache-2.0" }
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = ["click>=8.1.7", "grafana-client>=4.2.0", "rich>=13.9.4"]
 
