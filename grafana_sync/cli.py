@@ -15,6 +15,7 @@ from grafana_sync.api import (
     get_folder_data,
     walk,
 )
+from grafana_sync.backup import GrafanaBackup
 from grafana_sync.sync import GrafanaSync
 
 logger = logging.getLogger(__name__)
@@ -337,3 +338,59 @@ def sync_folders(
         dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
         for dashboard_uid in dashboards_to_delete:
             syncer.delete_dashboard(dashboard_uid)
+
+
+@cli.command(name="backup")
+@click.option(
+    "-f",
+    "--folder-uid",
+    default=FOLDER_GENERAL,
+    help="Optional folder UID to backup only this folder and its subfolders",
+)
+@click.option(
+    "-r",
+    "--recursive",
+    is_flag=True,
+    help="Backup folders recursively",
+)
+@click.option(
+    "-d",
+    "--include-dashboards",
+    is_flag=True,
+    help="Include dashboards in the backup",
+)
+@click.option(
+    "--backup-path",
+    type=click.Path(),
+    required=True,
+    help="Path to store backup files",
+)
+@click.pass_context
+def backup_folders(
+    ctx: click.Context,
+    folder_uid: str,
+    recursive: bool,
+    include_dashboards: bool,
+    backup_path: str,
+) -> None:
+    """Backup folders and dashboards from Grafana instance to local storage."""
+    grafana = ctx.ensure_object(GrafanaApi)
+    backup = GrafanaBackup(grafana, backup_path)
+
+    if folder_uid != FOLDER_GENERAL:
+        # Backup the specified folder first
+        backup.backup_folder(folder_uid)
+
+    if recursive:
+        # Recursively backup from the specified folder
+        backup.backup_recursive(folder_uid, include_dashboards)
+    elif include_dashboards:
+        # Non-recursive, just backup dashboards in the specified folder
+        for _, _, dashboards in walk(
+            grafana,
+            folder_uid,
+            recursive=False,
+            include_dashboards=True,
+        ):
+            for dashboard in dashboards:
+                backup.backup_dashboard(dashboard["uid"])
