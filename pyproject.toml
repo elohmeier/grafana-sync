@@ -23,4 +23,4 @@ CI = "https://github.com/elohmeier/grafana-sync/actions"
 grafana-sync = "grafana_sync.cli:cli"
 
 [project.optional-dependencies]
-test = ["pytest"]
+test = ["pytest", "pytest-docker", "requests>=2.32.3"]
