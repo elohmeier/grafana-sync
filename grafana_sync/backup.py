@@ -1,10 +1,17 @@
 import json
 import logging
 from pathlib import Path
+from typing import Iterable, Sequence
 
 from grafana_client import GrafanaApi
 
-from grafana_sync.api import FOLDER_GENERAL, get_folder_data, walk
+from grafana_sync.api import (
+    FOLDER_GENERAL,
+    GetAllFoldersResponse,
+    FolderDashboardSearchResponse,
+    get_folder_data,
+    walk,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +63,56 @@ class GrafanaBackup:
             dashboard["dashboard"]["title"],
             dashboard_file,
         )
+
+    def walk_backup(
+        self, folder_uid: str = FOLDER_GENERAL
+    ) -> Iterable[tuple[str, GetAllFoldersResponse, FolderDashboardSearchResponse]]:
+        """Walk through the backup folder structure, similar to walk()."""
+        folders_path = self.folders_path
+        dashboards_path = self.dashboards_path
+
+        def get_subfolders(parent_uid: str) -> GetAllFoldersResponse:
+            result = []
+            for folder_file in folders_path.glob("*.json"):
+                with folder_file.open() as f:
+                    folder_data = json.load(f)
+                    parent = folder_data.get("parentUid")
+                    if (parent_uid == FOLDER_GENERAL and parent is None) or (
+                        parent_uid != FOLDER_GENERAL and parent == parent_uid
+                    ):
+                        result.append(
+                            {
+                                "uid": folder_data["uid"],
+                                "title": folder_data["title"],
+                            }
+                        )
+            return result
+
+        def get_dashboards(folder_uid: str) -> FolderDashboardSearchResponse:
+            result = []
+            for dashboard_file in dashboards_path.glob("*.json"):
+                with dashboard_file.open() as f:
+                    dashboard_data = json.load(f)
+                    if dashboard_data["meta"].get("folderUid") == folder_uid:
+                        result.append(
+                            {
+                                "uid": dashboard_data["dashboard"]["uid"],
+                                "title": dashboard_data["dashboard"]["title"],
+                            }
+                        )
+            return result
+
+        def walk_recursive(
+            current_uid: str,
+        ) -> Iterable[tuple[str, Sequence, Sequence]]:
+            subfolders = get_subfolders(current_uid)
+            dashboards = get_dashboards(current_uid)
+            yield current_uid, subfolders, dashboards
+
+            for folder in subfolders:
+                yield from walk_recursive(folder["uid"])
+
+        yield from walk_recursive(folder_uid)
 
     def backup_recursive(
         self,

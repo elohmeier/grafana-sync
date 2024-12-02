@@ -71,6 +71,68 @@ def test_backup_folder(grafana, backup_dir):
         grafana.folder.delete_folder(folder_uid)
 
 
+def test_walk_backup(grafana, backup_dir):
+    backup = GrafanaBackup(grafana, backup_dir)
+
+    # Create test folders and dashboards
+    grafana.folder.create_folder(title="L1", uid="l1")
+    grafana.folder.create_folder(title="L2", uid="l2", parent_uid="l1")
+
+    dashboard1 = {
+        "dashboard": {
+            "id": None,
+            "uid": "dash1",
+            "title": "Dashboard 1",
+            "version": 0,
+        },
+        "folderUid": "l1",
+        "overwrite": True,
+    }
+    dashboard2 = {
+        "dashboard": {
+            "id": None,
+            "uid": "dash2",
+            "title": "Dashboard 2",
+            "version": 0,
+        },
+        "folderUid": "l2",
+        "overwrite": True,
+    }
+
+    grafana.dashboard.update_dashboard(dashboard1)
+    grafana.dashboard.update_dashboard(dashboard2)
+
+    try:
+        # Backup everything first
+        backup.backup_recursive()
+
+        # Test walk_backup
+        walk_result = list(backup.walk_backup())
+
+        # Convert to comparable format
+        simplified = [
+            (
+                uid,
+                sorted([f["uid"] for f in folders]),
+                sorted([d["uid"] for d in dashboards]),
+            )
+            for uid, folders, dashboards in walk_result
+        ]
+
+        expected = [
+            ("general", ["l1"], []),
+            ("l1", ["l2"], ["dash1"]),
+            ("l2", [], ["dash2"]),
+        ]
+
+        assert simplified == expected
+
+    finally:
+        grafana.dashboard.delete_dashboard("dash1")
+        grafana.dashboard.delete_dashboard("dash2")
+        grafana.folder.delete_folder("l1")
+
+
 def test_backup_recursive(grafana, backup_dir):
     backup = GrafanaBackup(grafana, backup_dir)
 
