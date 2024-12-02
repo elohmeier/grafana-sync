@@ -16,6 +16,7 @@ from grafana_sync.api import (
     walk,
 )
 from grafana_sync.backup import GrafanaBackup
+from grafana_sync.restore import GrafanaRestore
 from grafana_sync.sync import GrafanaSync
 
 logger = logging.getLogger(__name__)
@@ -394,3 +395,50 @@ def backup_folders(
         ):
             for dashboard in dashboards:
                 backup.backup_dashboard(dashboard["uid"])
+
+
+@cli.command(name="restore")
+@click.option(
+    "-f",
+    "--folder-uid",
+    help="Optional folder UID to restore only this folder",
+)
+@click.option(
+    "-d",
+    "--dashboard-uid",
+    help="Optional dashboard UID to restore only this dashboard",
+)
+@click.option(
+    "-r",
+    "--recursive",
+    is_flag=True,
+    help="Restore all folders and dashboards from backup",
+)
+@click.option(
+    "--backup-path",
+    type=click.Path(exists=True),
+    required=True,
+    help="Path to read backup files from",
+)
+@click.pass_context
+def restore_folders(
+    ctx: click.Context,
+    folder_uid: str | None,
+    dashboard_uid: str | None,
+    recursive: bool,
+    backup_path: str,
+) -> None:
+    """Restore folders and dashboards from local storage to Grafana instance."""
+    grafana = ctx.ensure_object(GrafanaApi)
+    restore = GrafanaRestore(grafana, backup_path)
+
+    if recursive:
+        restore.restore_recursive()
+    elif folder_uid:
+        restore.restore_folder(folder_uid)
+    elif dashboard_uid:
+        restore.restore_dashboard(dashboard_uid)
+    else:
+        raise click.UsageError(
+            "Either --recursive, --folder-uid or --dashboard-uid must be specified"
+        )
