@@ -106,7 +106,7 @@ def cli(
     ctx.obj = create_grafana_client(url, api_key, username, password)
 
 
-@cli.command(name="list-folders")
+@cli.command(name="list")
 @click.option(
     "-f",
     "--folder-uid",
