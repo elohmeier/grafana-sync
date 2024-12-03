@@ -1,65 +1,24 @@
 import logging
-from typing import Mapping
-from urllib.parse import urlparse
+from typing import TYPE_CHECKING, Mapping
 
 import click
-from grafana_client import GrafanaApi
 from rich import print as rprint
 from rich import print_json
 from rich.tree import Tree
 
-from grafana_sync.api import (
-    FOLDER_GENERAL,
-    FolderDashboardSearchResponseItem,
-    GetAllFoldersResponseItem,
-    get_folder_data,
-    walk,
-)
+from grafana_sync.api import FOLDER_GENERAL, GrafanaClient
 from grafana_sync.backup import GrafanaBackup
 from grafana_sync.restore import GrafanaRestore
 from grafana_sync.sync import GrafanaSync
 
-logger = logging.getLogger(__name__)
-
-
-def create_grafana_client(
-    url: str,
-    api_key: str | None = None,
-    username: str | None = None,
-    password: str | None = None,
-) -> GrafanaApi:
-    """Create a Grafana API client from connection parameters."""
-    parsed_url = urlparse(url)
-    logging.debug("Parsing URL: %s", url)
-    host = parsed_url.hostname or "localhost"
-    protocol = parsed_url.scheme or "https"
-    port = parsed_url.port
-
-    # Extract credentials from URL if present
-    if parsed_url.username and parsed_url.password and not (username or password):
-        username = parsed_url.username
-        password = parsed_url.password
-
-    if api_key:
-        auth = (api_key, "")
-    elif username and password:
-        auth = (username, password)
-    else:
-        raise click.UsageError(
-            "Either --api-key or both --username and --password must be provided (via parameters or URL)"
-        )
-
-    url_path_prefix = parsed_url.path.strip("/")
-    if url_path_prefix:
-        url_path_prefix = f"{url_path_prefix}/"
-
-    return GrafanaApi(
-        auth,
-        host=host,
-        port=port,
-        protocol=protocol,
-        url_path_prefix=url_path_prefix,
+if TYPE_CHECKING:
+    from grafana_sync.api import (
+        GetFolderResponse,
+        GetFoldersResponseItem,
+        SearchDashboardsResponseItem,
     )
+
+logger = logging.getLogger(__name__)
 
 
 @click.group()
@@ -105,7 +64,10 @@ def cli(
 ):
     """Sync Grafana dashboards and folders."""
     logging.basicConfig(level=getattr(logging, log_level.upper()))
-    ctx.obj = create_grafana_client(url, api_key, username, password)
+    try:
+        ctx.obj = ctx.with_resource(GrafanaClient(url, api_key, username, password))
+    except ValueError as ex:
+        raise click.UsageError(ex.args[0]) from ex
 
 
 @cli.command(name="list")
@@ -142,19 +104,19 @@ def list_folders(
     output_json: bool,
 ) -> None:
     """List folders in a Grafana instance."""
-    grafana = ctx.ensure_object(GrafanaApi)
+    grafana = ctx.ensure_object(GrafanaClient)
 
     class TreeDashboardItem:
         """Represents a dashboard item in the folder tree structure."""
 
-        def __init__(self, data: FolderDashboardSearchResponseItem) -> None:
+        def __init__(self, data: "SearchDashboardsResponseItem") -> None:
             """Initialize dashboard item with API response data."""
             self.data = data
 
         @property
         def label(self) -> str:
             """Get the display label for the dashboard."""
-            return f"📊 {self.data['title']} ({self.data['uid']})"
+            return f"📊 {self.data.title} ({self.data.uid})"
 
         def to_tree(self, parent: Tree) -> None:
             """Add this dashboard as a node to the parent tree."""
@@ -169,18 +131,18 @@ def list_folders(
 
         children: list["TreeFolderItem | TreeDashboardItem"]
 
-        def __init__(self, data: GetAllFoldersResponseItem) -> None:
+        def __init__(self, data: "GetFolderResponse | GetFoldersResponseItem") -> None:
             """Initialize folder item with API response data."""
             self.children = []
             self.data = data
 
         def __repr__(self) -> str:
-            return f"TreeFolderItem({self.data['title']})"
+            return f"TreeFolderItem({self.data.title})"
 
         @property
         def label(self) -> str:
             """Get the display label for the folder."""
-            return f"📁 {self.data['title']} ({self.data['uid']})"
+            return f"📁 {self.data.title} ({self.data.uid})"
 
         def to_tree(self, parent: Tree | None = None) -> Tree:
             """Convert folder and its children to a rich Tree structure.
@@ -205,29 +167,32 @@ def list_folders(
             """Convert folder and its children to JSON-compatible representation."""
             children_data = [c.to_obj() for c in self.children]
             if self.data:
-                return {"type": "dash-folder", "children": children_data} | self.data
+                return {
+                    "type": "dash-folder",
+                    "children": children_data,
+                } | self.data.model_dump()
             else:
                 return children_data
 
     folder_nodes: Mapping[str | None, TreeFolderItem] = {}
 
-    for root_uid, folders, dashboards in walk(
-        grafana, folder_uid, recursive, include_dashboards
+    for root_uid, folders, dashboards in grafana.walk(
+        folder_uid, recursive, include_dashboards
     ):
         if root_uid in folder_nodes:
             root_node = folder_nodes[root_uid]
         else:
-            root_folder_data = get_folder_data(grafana, root_uid)
+            root_folder_data = grafana.get_folder(root_uid)
             root_node = TreeFolderItem(root_folder_data)
             folder_nodes[root_uid] = root_node
 
-        for folder in folders:
-            if folder["uid"] not in folder_nodes:
+        for folder in folders.root:
+            if folder.uid not in folder_nodes:
                 itm = TreeFolderItem(folder)
-                folder_nodes[folder["uid"]] = itm
+                folder_nodes[folder.uid] = itm
                 root_node.children.append(itm)
 
-        for dashboard in dashboards:
+        for dashboard in dashboards.root:
             itm = TreeDashboardItem(dashboard)
             root_node.children.append(itm)
 
@@ -297,48 +262,45 @@ def sync_folders(
     prune: bool,
 ) -> None:
     """Sync folders from source to destination Grafana instance."""
-    src_grafana = ctx.ensure_object(GrafanaApi)
-    dst_grafana = create_grafana_client(
-        dst_url, dst_api_key, dst_username, dst_password
-    )
+    src_grafana = ctx.ensure_object(GrafanaClient)
+    with GrafanaClient(dst_url, dst_api_key, dst_username, dst_password) as dst_grafana:
+        syncer = GrafanaSync(src_grafana, dst_grafana)
 
-    syncer = GrafanaSync(src_grafana, dst_grafana)
+        # Track source dashboards if pruning is enabled
+        src_dashboard_uids = set()
+        dst_dashboard_uids = set()
 
-    # Track source dashboards if pruning is enabled
-    src_dashboard_uids = set()
-    dst_dashboard_uids = set()
+        if include_dashboards and prune:
+            # Get all dashboards in destination folders before we start syncing
+            dst_dashboard_uids = syncer.get_folder_dashboards(
+                dst_grafana, folder_uid, recursive
+            )
 
-    if include_dashboards and prune:
-        # Get all dashboards in destination folders before we start syncing
-        dst_dashboard_uids = syncer.get_folder_dashboards(
-            dst_grafana, folder_uid, recursive
-        )
+        # if a folder was requested sync it first
+        if folder_uid != FOLDER_GENERAL:
+            syncer.sync_folder(folder_uid, can_move=False)
 
-    # if a folder was requested sync it first
-    if folder_uid != FOLDER_GENERAL:
-        syncer.sync_folder(folder_uid, can_move=False)
+        # Now walk and sync child folders and optionally dashboards
+        for root_uid, folders, dashboards in src_grafana.walk(
+            folder_uid, recursive, include_dashboards=include_dashboards
+        ):
+            for folder in folders.root:
+                syncer.sync_folder(folder.uid, can_move=True)
 
-    # Now walk and sync child folders and optionally dashboards
-    for root_uid, folders, dashboards in walk(
-        src_grafana, folder_uid, recursive, include_dashboards=include_dashboards
-    ):
-        for folder in folders:
-            syncer.sync_folder(folder["uid"], can_move=True)
+            # Sync dashboards if requested
+            if include_dashboards:
+                for dashboard in dashboards.root:
+                    dashboard_uid = dashboard.uid
+                    if syncer.sync_dashboard(dashboard_uid, root_uid):
+                        src_dashboard_uids.add(dashboard_uid)
 
-        # Sync dashboards if requested
-        if include_dashboards:
-            for dashboard in dashboards:
-                dashboard_uid = dashboard["uid"]
-                if syncer.sync_dashboard(dashboard_uid, root_uid):
-                    src_dashboard_uids.add(dashboard_uid)
+        syncer.move_folders_to_new_parents()
 
-    syncer.move_folders_to_new_parents()
-
-    # Prune dashboards that don't exist in source
-    if include_dashboards and prune:
-        dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
-        for dashboard_uid in dashboards_to_delete:
-            syncer.delete_dashboard(dashboard_uid)
+        # Prune dashboards that don't exist in source
+        if include_dashboards and prune:
+            dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
+            for dashboard_uid in dashboards_to_delete:
+                syncer.delete_dashboard(dashboard_uid)
 
 
 @cli.command(name="backup")
@@ -375,7 +337,7 @@ def backup_folders(
     backup_path: str,
 ) -> None:
     """Backup folders and dashboards from Grafana instance to local storage."""
-    grafana = ctx.ensure_object(GrafanaApi)
+    grafana = ctx.ensure_object(GrafanaClient)
     backup = GrafanaBackup(grafana, backup_path)
 
     if folder_uid != FOLDER_GENERAL:
@@ -387,14 +349,13 @@ def backup_folders(
         backup.backup_recursive(folder_uid, include_dashboards)
     elif include_dashboards:
         # Non-recursive, just backup dashboards in the specified folder
-        for _, _, dashboards in walk(
-            grafana,
+        for _, _, dashboards in grafana.walk(
             folder_uid,
             recursive=False,
             include_dashboards=True,
         ):
-            for dashboard in dashboards:
-                backup.backup_dashboard(dashboard["uid"])
+            for dashboard in dashboards.root:
+                backup.backup_dashboard(dashboard.uid)
 
 
 @cli.command(name="restore")
@@ -429,7 +390,7 @@ def restore_folders(
     backup_path: str,
 ) -> None:
     """Restore folders and dashboards from local storage to Grafana instance."""
-    grafana = ctx.ensure_object(GrafanaApi)
+    grafana = ctx.ensure_object(GrafanaClient)
     restore = GrafanaRestore(grafana, backup_path)
 
     if recursive:

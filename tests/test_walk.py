@@ -1,46 +1,32 @@
+from typing import TYPE_CHECKING
+
 import pytest
-import requests
-from grafana_client import GrafanaApi
-from requests.exceptions import ConnectionError
 
-from grafana_sync.api import walk
-from grafana_sync.cli import create_grafana_client
+from grafana_sync.api import GetFoldersResponse, SearchDashboardsResponse
 
+from .utils import docker_grafana_client
 
-def _remove_ids(items):
-    """Remove id fields from folder items for comparison."""
-    return [{k: v for k, v in item.items() if k != "id"} for item in items]
-
-
-def is_responsive(url):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return True
-    except ConnectionError:
-        return False
+if TYPE_CHECKING:
+    from grafana_sync.api import GrafanaClient
 
 
 @pytest.fixture(scope="session")
 def grafana(docker_ip, docker_services):
-    """Ensure that HTTP service is up and responsive."""
-
-    # `port_for` takes a container port and returns the corresponding host port
-    port = docker_services.port_for("grafana", 3000)
-    url = f"http://{docker_ip}:{port}"
-    docker_services.wait_until_responsive(
-        timeout=30.0, pause=0.1, check=lambda: is_responsive(url)
-    )
-    return create_grafana_client(url, username="admin", password="admin")
+    return docker_grafana_client(docker_ip, docker_services)
 
 
-def test_walk_single_folder(grafana: GrafanaApi):
-    grafana.folder.create_folder(title="dummy", uid="dummy", parent_uid=None)
+def _to_dicts(items: GetFoldersResponse | SearchDashboardsResponse):
+    """Remove id fields from folder items and convert to dict for comparison."""
+    return [item.model_dump(exclude={"id"}, exclude_none=True) for item in items.root]
+
+
+def test_walk_single_folder(grafana: "GrafanaClient"):
+    grafana.create_folder(title="dummy", uid="dummy", parent_uid=None)
 
     try:
-        lst = list(walk(grafana, "general", True, True))
+        lst = list(grafana.walk("general", True, True))
         lst = [
-            (folder_uid, _remove_ids(folders), dashboards)
+            (folder_uid, _to_dicts(folders), _to_dicts(dashboards))
             for folder_uid, folders, dashboards in lst
         ]
         assert lst == [
@@ -48,17 +34,17 @@ def test_walk_single_folder(grafana: GrafanaApi):
             ("dummy", [], []),
         ]
     finally:
-        grafana.folder.delete_folder("dummy")
+        grafana.delete_folder("dummy")
 
 
-def test_walk_recursive_folders(grafana):
-    grafana.folder.create_folder(title="l1", uid="l1", parent_uid=None)
-    grafana.folder.create_folder(title="l2", uid="l2", parent_uid="l1")
+def test_walk_recursive_folders(grafana: "GrafanaClient"):
+    grafana.create_folder(title="l1", uid="l1", parent_uid=None)
+    grafana.create_folder(title="l2", uid="l2", parent_uid="l1")
 
     try:
-        lst = list(walk(grafana, "general", True, True))
+        lst = list(grafana.walk("general", True, True))
         lst = [
-            (folder_uid, _remove_ids(folders), dashboards)
+            (folder_uid, _to_dicts(folders), _to_dicts(dashboards))
             for folder_uid, folders, dashboards in lst
         ]
         assert lst == [
@@ -67,4 +53,4 @@ def test_walk_recursive_folders(grafana):
             ("l2", [], []),
         ]
     finally:
-        grafana.folder.delete_folder("l1")
+        grafana.delete_folder("l1")

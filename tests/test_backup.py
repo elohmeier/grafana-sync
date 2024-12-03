@@ -3,31 +3,16 @@ import tempfile
 from pathlib import Path
 
 import pytest
-import requests
-from requests.exceptions import ConnectionError
 
+from grafana_sync.api import DashboardData, GrafanaClient
 from grafana_sync.backup import GrafanaBackup
-from grafana_sync.cli import create_grafana_client
 
-
-def is_responsive(url):
-    try:
-        response = requests.get(url)
-        if response.status_code == 200:
-            return True
-    except ConnectionError:
-        return False
+from .utils import docker_grafana_client
 
 
 @pytest.fixture(scope="session")
 def grafana(docker_ip, docker_services):
-    """Ensure that HTTP service is up and responsive."""
-    port = docker_services.port_for("grafana", 3000)
-    url = f"http://{docker_ip}:{port}"
-    docker_services.wait_until_responsive(
-        timeout=30.0, pause=0.1, check=lambda: is_responsive(url)
-    )
-    return create_grafana_client(url, username="admin", password="admin")
+    return docker_grafana_client(docker_ip, docker_services)
 
 
 @pytest.fixture
@@ -37,7 +22,7 @@ def backup_dir():
         yield Path(tmpdir)
 
 
-def test_backup_directories_creation(grafana, backup_dir):
+def test_backup_directories_creation(grafana: GrafanaClient, backup_dir: Path):
     GrafanaBackup(grafana, backup_dir)
 
     assert (backup_dir / "folders").exists()
@@ -46,12 +31,12 @@ def test_backup_directories_creation(grafana, backup_dir):
     assert (backup_dir / "dashboards").is_dir()
 
 
-def test_backup_folder(grafana, backup_dir):
+def test_backup_folder(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create a test folder
     folder_uid = "test-folder"
-    grafana.folder.create_folder(title="Test Folder", uid=folder_uid)
+    grafana.create_folder(title="Test Folder", uid=folder_uid)
 
     try:
         # Backup the folder
@@ -68,39 +53,21 @@ def test_backup_folder(grafana, backup_dir):
             assert folder_data["title"] == "Test Folder"
 
     finally:
-        grafana.folder.delete_folder(folder_uid)
+        grafana.delete_folder(folder_uid)
 
 
-def test_walk_backup(grafana, backup_dir):
+def test_walk_backup(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create test folders and dashboards
-    grafana.folder.create_folder(title="L1", uid="l1")
-    grafana.folder.create_folder(title="L2", uid="l2", parent_uid="l1")
+    grafana.create_folder(title="L1", uid="l1")
+    grafana.create_folder(title="L2", uid="l2", parent_uid="l1")
 
-    dashboard1 = {
-        "dashboard": {
-            "id": None,
-            "uid": "dash1",
-            "title": "Dashboard 1",
-            "version": 0,
-        },
-        "folderUid": "l1",
-        "overwrite": True,
-    }
-    dashboard2 = {
-        "dashboard": {
-            "id": None,
-            "uid": "dash2",
-            "title": "Dashboard 2",
-            "version": 0,
-        },
-        "folderUid": "l2",
-        "overwrite": True,
-    }
+    dashboard1 = DashboardData(uid="dash1", title="Dashboard 1")
+    dashboard2 = DashboardData(uid="dash2", title="Dashboard 2")
 
-    grafana.dashboard.update_dashboard(dashboard1)
-    grafana.dashboard.update_dashboard(dashboard2)
+    grafana.update_dashboard(dashboard1, "l1")
+    grafana.update_dashboard(dashboard2, "l2")
 
     try:
         # Backup everything first
@@ -113,8 +80,8 @@ def test_walk_backup(grafana, backup_dir):
         simplified = [
             (
                 uid,
-                sorted([f["uid"] for f in folders]),
-                sorted([d["uid"] for d in dashboards]),
+                sorted([f.uid for f in folders]),
+                sorted([d.dashboard.uid for d in dashboards]),
             )
             for uid, folders, dashboards in walk_result
         ]
@@ -128,17 +95,17 @@ def test_walk_backup(grafana, backup_dir):
         assert simplified == expected
 
     finally:
-        grafana.dashboard.delete_dashboard("dash1")
-        grafana.dashboard.delete_dashboard("dash2")
-        grafana.folder.delete_folder("l1")
+        grafana.delete_dashboard("dash1")
+        grafana.delete_dashboard("dash2")
+        grafana.delete_folder("l1")
 
 
-def test_backup_recursive(grafana, backup_dir):
+def test_backup_recursive(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create test folders
-    grafana.folder.create_folder(title="L1", uid="l1")
-    grafana.folder.create_folder(title="L2", uid="l2", parent_uid="l1")
+    grafana.create_folder(title="L1", uid="l1")
+    grafana.create_folder(title="L2", uid="l2", parent_uid="l1")
 
     try:
         # Perform recursive backup
@@ -161,28 +128,16 @@ def test_backup_recursive(grafana, backup_dir):
             assert l2_data["parentUid"] == "l1"
 
     finally:
-        grafana.folder.delete_folder("l1")
+        grafana.delete_folder("l1")
 
 
-def test_backup_dashboard(grafana, backup_dir):
+def test_backup_dashboard(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create a test dashboard
-    dashboard = {
-        "dashboard": {
-            "id": None,
-            "uid": "test-dashboard",
-            "title": "Test Dashboard",
-            "tags": ["test"],
-            "timezone": "browser",
-            "schemaVersion": 16,
-            "version": 0,
-        },
-        "folderId": 0,
-        "overwrite": True,
-    }
+    dashboard = DashboardData(uid="test-dashboard", title="Test Dashboard")
 
-    grafana.dashboard.update_dashboard(dashboard)
+    grafana.update_dashboard(dashboard)
 
     try:
         # Backup the dashboard
@@ -199,4 +154,4 @@ def test_backup_dashboard(grafana, backup_dir):
             assert dashboard_data["dashboard"]["title"] == "Test Dashboard"
 
     finally:
-        grafana.dashboard.delete_dashboard("test-dashboard")
+        grafana.delete_dashboard("test-dashboard")

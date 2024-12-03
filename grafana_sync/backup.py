@@ -1,17 +1,15 @@
-import json
 import logging
 from pathlib import Path
-from typing import Iterable, Sequence
-
-from grafana_client import GrafanaApi
+from typing import TYPE_CHECKING, Generator, Iterable, Sequence
 
 from grafana_sync.api import (
     FOLDER_GENERAL,
-    GetAllFoldersResponse,
-    FolderDashboardSearchResponse,
-    get_folder_data,
-    walk,
+    GetDashboardResponse,
+    GetFoldersResponseItem,
 )
+
+if TYPE_CHECKING:
+    from grafana_sync.api import GrafanaClient
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +19,7 @@ class GrafanaBackup:
 
     def __init__(
         self,
-        grafana: GrafanaApi,
+        grafana: "GrafanaClient",
         backup_path: Path | str,
     ) -> None:
         self.grafana = grafana
@@ -38,17 +36,17 @@ class GrafanaBackup:
 
     def backup_folder(self, folder_uid: str) -> None:
         """Backup a single folder to local storage."""
-        folder_data = get_folder_data(self.grafana, folder_uid)
+        folder_data = self.grafana.get_folder(folder_uid)
         folder_file = self.folders_path / f"{folder_uid}.json"
 
         with folder_file.open("w") as f:
-            json.dump(folder_data, f, indent=2)
+            f.write(folder_data.model_dump_json(indent=2))
 
-        logger.info("Backed up folder '%s' to %s", folder_data["title"], folder_file)
+        logger.info("Backed up folder '%s' to %s", folder_data.title, folder_file)
 
     def backup_dashboard(self, dashboard_uid: str) -> None:
         """Backup a single dashboard to local storage."""
-        dashboard = self.grafana.dashboard.get_dashboard(dashboard_uid)
+        dashboard = self.grafana.get_dashboard(dashboard_uid)
         if not dashboard:
             logger.error("Dashboard %s not found", dashboard_uid)
             return
@@ -56,61 +54,56 @@ class GrafanaBackup:
         dashboard_file = self.dashboards_path / f"{dashboard_uid}.json"
 
         with dashboard_file.open("w") as f:
-            json.dump(dashboard, f, indent=2)
+            f.write(dashboard.model_dump_json(indent=2))
 
         logger.info(
             "Backed up dashboard '%s' to %s",
-            dashboard["dashboard"]["title"],
+            dashboard.dashboard.title,
             dashboard_file,
         )
 
     def walk_backup(
         self, folder_uid: str = FOLDER_GENERAL
-    ) -> Iterable[tuple[str, GetAllFoldersResponse, FolderDashboardSearchResponse]]:
+    ) -> Iterable[
+        tuple[str, Sequence[GetFoldersResponseItem], Sequence[GetDashboardResponse]]
+    ]:
         """Walk through the backup folder structure, similar to walk()."""
         folders_path = self.folders_path
         dashboards_path = self.dashboards_path
 
-        def get_subfolders(parent_uid: str) -> GetAllFoldersResponse:
-            result = []
+        def get_subfolders(
+            parent_uid: str,
+        ) -> Generator[GetFoldersResponseItem, None, None]:
             for folder_file in folders_path.glob("*.json"):
                 with folder_file.open() as f:
-                    folder_data = json.load(f)
-                    parent = folder_data.get("parentUid")
-                    if (parent_uid == FOLDER_GENERAL and parent is None) or (
-                        parent_uid != FOLDER_GENERAL and parent == parent_uid
-                    ):
-                        result.append(
-                            {
-                                "uid": folder_data["uid"],
-                                "title": folder_data["title"],
-                            }
-                        )
-            return result
+                    folder_data = GetFoldersResponseItem.model_validate_json(f.read())
 
-        def get_dashboards(folder_uid: str) -> FolderDashboardSearchResponse:
-            result = []
+                parent = folder_data.parentUid
+                if (parent_uid == FOLDER_GENERAL and parent is None) or (
+                    parent_uid != FOLDER_GENERAL and parent == parent_uid
+                ):
+                    yield folder_data
+
+        def get_dashboards(
+            folder_uid: str,
+        ) -> Generator[GetDashboardResponse, None, None]:
             for dashboard_file in dashboards_path.glob("*.json"):
                 with dashboard_file.open() as f:
-                    dashboard_data = json.load(f)
-                    if dashboard_data["meta"].get("folderUid") == folder_uid:
-                        result.append(
-                            {
-                                "uid": dashboard_data["dashboard"]["uid"],
-                                "title": dashboard_data["dashboard"]["title"],
-                            }
-                        )
-            return result
+                    dashboard_data = GetDashboardResponse.model_validate_json(f.read())
+                if dashboard_data.meta.folderUid == folder_uid:
+                    yield dashboard_data
 
         def walk_recursive(
             current_uid: str,
-        ) -> Iterable[tuple[str, Sequence, Sequence]]:
-            subfolders = get_subfolders(current_uid)
-            dashboards = get_dashboards(current_uid)
+        ) -> Iterable[
+            tuple[str, Sequence[GetFoldersResponseItem], Sequence[GetDashboardResponse]]
+        ]:
+            subfolders = list(get_subfolders(current_uid))
+            dashboards = list(get_dashboards(current_uid))
             yield current_uid, subfolders, dashboards
 
             for folder in subfolders:
-                yield from walk_recursive(folder["uid"])
+                yield from walk_recursive(folder.uid)
 
         yield from walk_recursive(folder_uid)
 
@@ -122,8 +115,7 @@ class GrafanaBackup:
         """Recursively backup folders and optionally dashboards starting from a folder."""
         self._ensure_backup_dirs()
 
-        for folder_uid, _, dashboards in walk(
-            self.grafana,
+        for folder_uid, _, dashboards in self.grafana.walk(
             folder_uid,
             recursive=True,
             include_dashboards=include_dashboards,
@@ -134,5 +126,5 @@ class GrafanaBackup:
 
             # Backup dashboards
             if include_dashboards:
-                for dashboard in dashboards:
-                    self.backup_dashboard(dashboard["uid"])
+                for dashboard in dashboards.root:
+                    self.backup_dashboard(dashboard.uid)

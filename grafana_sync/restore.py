@@ -1,19 +1,15 @@
-import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from grafana_client import GrafanaApi
-
-from .api import FOLDER_GENERAL
+from .api import FOLDER_GENERAL, GetDashboardResponse, GetFolderResponse
 from .backup import GrafanaBackup
 from .exceptions import BackupNotFoundError
 
 logger = logging.getLogger(__name__)
 
-
-def _remove_id(item: dict):
-    """Remove id fields from  item."""
-    return {k: v for k, v in item.items() if k != "id"}
+if TYPE_CHECKING:
+    from grafana_sync.api import GrafanaClient
 
 
 class GrafanaRestore:
@@ -21,7 +17,7 @@ class GrafanaRestore:
 
     def __init__(
         self,
-        grafana: GrafanaApi,
+        grafana: "GrafanaClient",
         backup_path: Path | str,
     ) -> None:
         self.grafana = grafana
@@ -37,31 +33,25 @@ class GrafanaRestore:
             raise BackupNotFoundError(f"Folder backup {folder_file} not found")
 
         with folder_file.open() as f:
-            folder_data = json.load(f)
+            folder_data = GetFolderResponse.model_validate_json(f.read())
 
         try:
             # Try to get existing folder
-            self.grafana.folder.get_folder(folder_uid)
+            self.grafana.get_folder(folder_uid)
             # Update existing folder - note: parent_uid not supported in update
-            self.grafana.folder.update_folder(
-                folder_uid,
-                title=folder_data["title"],
-                overwrite=True,
+            self.grafana.update_folder(
+                folder_uid, title=folder_data.title, overwrite=True
             )
-            logger.info(
-                "Updated folder '%s' from %s", folder_data["title"], folder_file
-            )
+            logger.info("Updated folder '%s' from %s", folder_data.title, folder_file)
         except Exception as e:
             logger.debug("Failed to update folder: %s", e)
             # Create new folder if it doesn't exist
-            self.grafana.folder.create_folder(
-                title=folder_data["title"],
-                uid=folder_data["uid"],
-                parent_uid=folder_data.get("parentUid"),
+            self.grafana.create_folder(
+                title=folder_data.title,
+                uid=folder_data.uid,
+                parent_uid=folder_data.parentUid,
             )
-            logger.info(
-                "Created folder '%s' from %s", folder_data["title"], folder_file
-            )
+            logger.info("Created folder '%s' from %s", folder_data.title, folder_file)
 
     def restore_dashboard(self, dashboard_uid: str) -> None:
         """Restore a single dashboard from local storage."""
@@ -71,17 +61,14 @@ class GrafanaRestore:
             raise BackupNotFoundError(f"Dashboard backup {dashboard_file} not found")
 
         with dashboard_file.open() as f:
-            dashboard_data = json.load(f)
+            dashboard_data = GetDashboardResponse.model_validate_json(f.read())
 
-        payload = {
-            "dashboard": _remove_id(dashboard_data["dashboard"]),
-            "overwrite": True,
-        }
-
-        self.grafana.dashboard.update_dashboard(payload)
+        self.grafana.update_dashboard(
+            dashboard_data.dashboard, dashboard_data.meta.folderUid
+        )
         logger.info(
             "Restored dashboard '%s' from %s",
-            dashboard_data["dashboard"]["title"],
+            dashboard_data.dashboard.title,
             dashboard_file,
         )
 
@@ -94,4 +81,4 @@ class GrafanaRestore:
                 self.restore_folder(folder_uid)
             # Restore dashboards in this folder
             for dashboard in dashboards:
-                self.restore_dashboard(dashboard["uid"])
+                self.restore_dashboard(dashboard.dashboard.uid)
