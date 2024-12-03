@@ -26,6 +26,7 @@ class GrafanaBackup:
         self.backup_path = Path(backup_path)
         self.folders_path = self.backup_path / "folders"
         self.dashboards_path = self.backup_path / "dashboards"
+        self.reports_path = self.backup_path / "reports"
 
         self._ensure_backup_dirs()
 
@@ -33,6 +34,7 @@ class GrafanaBackup:
         """Ensure backup directories exist."""
         self.folders_path.mkdir(parents=True, exist_ok=True)
         self.dashboards_path.mkdir(parents=True, exist_ok=True)
+        self.reports_path.mkdir(parents=True, exist_ok=True)
 
     def backup_folder(self, folder_uid: str) -> None:
         """Backup a single folder to local storage."""
@@ -107,12 +109,23 @@ class GrafanaBackup:
 
         yield from walk_recursive(folder_uid)
 
+    def backup_report(self, report_id: int) -> None:
+        """Backup a single report to local storage."""
+        report = self.grafana.get_report(report_id)
+        report_file = self.reports_path / f"{report_id}.json"
+
+        with report_file.open("w") as f:
+            f.write(report.model_dump_json(indent=2))
+
+        logger.info("Backed up report '%s' to %s", report.report.name, report_file)
+
     def backup_recursive(
         self,
         folder_uid: str = FOLDER_GENERAL,
         include_dashboards: bool = True,
+        include_reports: bool = False,
     ) -> None:
-        """Recursively backup folders and optionally dashboards starting from a folder."""
+        """Recursively backup folders, dashboards, and reports starting from a folder."""
         self._ensure_backup_dirs()
 
         for folder_uid, _, dashboards in self.grafana.walk(
@@ -128,3 +141,9 @@ class GrafanaBackup:
             if include_dashboards:
                 for dashboard in dashboards.root:
                     self.backup_dashboard(dashboard.uid)
+
+        # Backup reports
+        if include_reports:
+            reports = self.grafana.get_reports()
+            for report in reports.root:
+                self.backup_report(report.id)

@@ -111,6 +111,27 @@ class GetDashboardResponse(BaseModel):
     meta: DashboardMeta
 
 
+class Report(BaseModel):
+    """Model for report data."""
+
+    id: int
+    name: str
+
+    model_config = ConfigDict(extra="allow")
+
+
+class GetReportsResponse(RootModel):
+    """Response model for reports list API."""
+
+    root: list[Report]
+
+
+class GetReportResponse(BaseModel):
+    """Response model for single report API."""
+
+    report: Report
+
+
 class UpdateFolderResponse(BaseModel):
     """Response model for folder update API."""
 
@@ -454,6 +475,65 @@ class GrafanaClient:
         response = self.client.get(f"/api/dashboards/uid/{uid}")
         self._handle_error(response)
         return GetDashboardResponse.model_validate_json(response.content)
+
+    def get_reports(self) -> GetReportsResponse:
+        """Get all reports.
+
+        Returns:
+            GetReportsResponse: List of reports
+
+        Raises:
+            GrafanaApiError: If the request fails
+        """
+        response = self.client.get("/api/reports")
+        self._handle_error(response)
+        return GetReportsResponse.model_validate_json(response.content)
+
+    def get_report(self, report_id: int) -> GetReportResponse:
+        """Get a report by its ID.
+
+        Args:
+            report_id: The unique identifier of the report
+
+        Returns:
+            GetReportResponse: The report details
+
+        Raises:
+            GrafanaApiError: If the request fails
+        """
+        response = self.client.get(f"/api/reports/{report_id}")
+        self._handle_error(response)
+        return GetReportResponse.model_validate_json(response.content)
+
+    def create_report(self, report: Report) -> GetReportResponse:
+        """Create a new report.
+
+        Args:
+            report: The report data
+
+        Returns:
+            GetReportResponse: The created report
+
+        Raises:
+            GrafanaApiError: If the request fails
+        """
+        response = self.client.post(
+            "/api/reports", json=report.model_dump(exclude={"id"})
+        )
+        self._handle_error(response)
+        return GetReportResponse.model_validate_json(response.content)
+
+    def delete_report(self, report_id: int) -> None:
+        """Delete a report.
+
+        Args:
+            report_id: The unique identifier of the report
+
+        Raises:
+            GrafanaApiError: If the request fails
+        """
+        response = self.client.delete(f"/api/reports/{report_id}")
+        self._handle_error(response)
 
     def walk(
         self,

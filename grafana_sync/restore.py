@@ -2,9 +2,14 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .api import FOLDER_GENERAL, GetDashboardResponse, GetFolderResponse
-from .backup import GrafanaBackup
-from .exceptions import BackupNotFoundError
+from grafana_sync.api import (
+    FOLDER_GENERAL,
+    GetDashboardResponse,
+    GetFolderResponse,
+    GetReportResponse,
+)
+from grafana_sync.backup import GrafanaBackup
+from grafana_sync.exceptions import BackupNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +29,7 @@ class GrafanaRestore:
         self.backup_path = Path(backup_path)
         self.folders_path = self.backup_path / "folders"
         self.dashboards_path = self.backup_path / "dashboards"
+        self.reports_path = self.backup_path / "reports"
 
     def restore_folder(self, folder_uid: str) -> None:
         """Restore a single folder from local storage."""
@@ -72,8 +78,25 @@ class GrafanaRestore:
             dashboard_file,
         )
 
-    def restore_recursive(self) -> None:
-        """Recursively restore all folders and dashboards from backup."""
+    def restore_report(self, report_id: int) -> None:
+        """Restore a single report from local storage."""
+        report_file = self.reports_path / f"{report_id}.json"
+
+        if not report_file.exists():
+            raise BackupNotFoundError(f"Report backup {report_file} not found")
+
+        with report_file.open() as f:
+            report_data = GetReportResponse.model_validate_json(f.read())
+
+        self.grafana.create_report(report_data.report)
+        logger.info(
+            "Restored report '%s' from %s",
+            report_data.report.name,
+            report_file,
+        )
+
+    def restore_recursive(self, include_reports: bool = False) -> None:
+        """Recursively restore all folders, dashboards and reports from backup."""
         backup = GrafanaBackup(self.grafana, self.backup_path)
         # First restore all folders (except General)
         for folder_uid, _, dashboards in backup.walk_backup():
@@ -82,3 +105,9 @@ class GrafanaRestore:
             # Restore dashboards in this folder
             for dashboard in dashboards:
                 self.restore_dashboard(dashboard.dashboard.uid)
+
+        # Restore reports if requested
+        if include_reports:
+            for report_file in self.reports_path.glob("*.json"):
+                report_id = int(report_file.stem)
+                self.restore_report(report_id)

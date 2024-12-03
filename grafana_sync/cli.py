@@ -328,6 +328,11 @@ def sync_folders(
     required=True,
     help="Path to store backup files",
 )
+@click.option(
+    "--include-reports",
+    is_flag=True,
+    help="Include reports in the backup",
+)
 @click.pass_context
 def backup_folders(
     ctx: click.Context,
@@ -335,6 +340,7 @@ def backup_folders(
     recursive: bool,
     include_dashboards: bool,
     backup_path: str,
+    include_reports: bool,
 ) -> None:
     """Backup folders and dashboards from Grafana instance to local storage."""
     grafana = ctx.ensure_object(GrafanaClient)
@@ -346,7 +352,7 @@ def backup_folders(
 
     if recursive:
         # Recursively backup from the specified folder
-        backup.backup_recursive(folder_uid, include_dashboards)
+        backup.backup_recursive(folder_uid, include_dashboards, include_reports)
     elif include_dashboards:
         # Non-recursive, just backup dashboards in the specified folder
         for _, _, dashboards in grafana.walk(
@@ -381,6 +387,11 @@ def backup_folders(
     required=True,
     help="Path to read backup files from",
 )
+@click.option(
+    "--include-reports",
+    is_flag=True,
+    help="Include reports in the restore",
+)
 @click.pass_context
 def restore_folders(
     ctx: click.Context,
@@ -388,13 +399,14 @@ def restore_folders(
     dashboard_uid: str | None,
     recursive: bool,
     backup_path: str,
+    include_reports: bool,
 ) -> None:
     """Restore folders and dashboards from local storage to Grafana instance."""
     grafana = ctx.ensure_object(GrafanaClient)
     restore = GrafanaRestore(grafana, backup_path)
 
     if recursive:
-        restore.restore_recursive()
+        restore.restore_recursive(include_reports)
     elif folder_uid:
         restore.restore_folder(folder_uid)
     elif dashboard_uid:
