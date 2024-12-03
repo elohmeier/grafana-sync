@@ -118,7 +118,7 @@ class GrafanaBackup:
         with report_file.open("w") as f:
             f.write(report.model_dump_json(indent=2))
 
-        logger.info("Backed up report '%s' to %s", report.report.name, report_file)
+        logger.info("Backed up report '%s' to %s", report.name, report_file)
 
     async def backup_recursive(
         self,

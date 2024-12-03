@@ -92,8 +92,8 @@ class GetDashboardResponse(BaseModel):
     meta: DashboardMeta
 
 
-class Report(BaseModel):
-    """Model for report data."""
+class GetReportResponse(BaseModel):
+    """Response model for single report API."""
 
     id: int
     name: str
@@ -101,16 +101,15 @@ class Report(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class CreateReportResponse(BaseModel):
+    id: int
+    message: str
+
+
 class GetReportsResponse(RootModel):
     """Response model for reports list API."""
 
-    root: list[Report]
-
-
-class GetReportResponse(BaseModel):
-    """Response model for single report API."""
-
-    report: Report
+    root: list[GetReportResponse]
 
 
 class UpdateFolderResponse(BaseModel):

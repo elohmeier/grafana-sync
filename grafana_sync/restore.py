@@ -88,10 +88,10 @@ class GrafanaRestore:
         with report_file.open() as f:
             report_data = GetReportResponse.model_validate_json(f.read())
 
-        await self.grafana.create_report(report_data.report)
+        await self.grafana.create_report(report_data)
         logger.info(
             "Restored report '%s' from %s",
-            report_data.report.name,
+            report_data.name,
             report_file,
         )
 

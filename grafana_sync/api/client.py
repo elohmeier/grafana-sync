@@ -10,13 +10,13 @@ from httpx import Response
 
 from grafana_sync.api.models import (
     CreateFolderResponse,
+    CreateReportResponse,
     DashboardData,
     GetDashboardResponse,
     GetFolderResponse,
     GetFoldersResponse,
     GetReportResponse,
     GetReportsResponse,
-    Report,
     SearchDashboardsResponse,
     UpdateDashboardRequest,
     UpdateDashboardResponse,
@@ -387,14 +387,14 @@ class GrafanaClient:
         self._handle_error(response)
         return GetReportResponse.model_validate_json(response.content)
 
-    async def create_report(self, report: Report) -> GetReportResponse:
+    async def create_report(self, report: GetReportResponse) -> CreateReportResponse:
         """Create a new report.
 
         Args:
             report: The report data
 
         Returns:
-            GetReportResponse: The created report
+            CreateReportResponse: The created report
 
         Raises:
             GrafanaApiError: If the request fails
@@ -403,7 +403,7 @@ class GrafanaClient:
             "/api/reports", json=report.model_dump(exclude={"id"})
         )
         self._handle_error(response)
-        return GetReportResponse.model_validate_json(response.content)
+        return CreateReportResponse.model_validate_json(response.content)
 
     async def delete_report(self, report_id: int) -> None:
         """Delete a report.
