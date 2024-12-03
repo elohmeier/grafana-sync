@@ -1,7 +1,7 @@
 import logging
 import os
 import ssl
-from typing import Iterable, Self
+from typing import AsyncGenerator, Self
 from urllib.parse import urlparse
 
 import certifi
@@ -22,7 +22,11 @@ from grafana_sync.api.models import (
     UpdateDashboardResponse,
     UpdateFolderResponse,
 )
-from grafana_sync.exceptions import GrafanaApiError
+from grafana_sync.exceptions import (
+    ExistingDashboardsError,
+    ExistingFoldersError,
+    GrafanaApiError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +85,7 @@ class GrafanaClient:
             capath=os.getenv("SSL_CERT_DIR"),
         )
 
-        self.client = httpx.Client(
+        self.client = httpx.AsyncClient(
             base_url=base_url,
             auth=auth,
             headers={"Content-Type": "application/json"},
@@ -89,11 +93,11 @@ class GrafanaClient:
             verify=ssl_context,
         )
 
-    def __enter__(self) -> Self:
+    async def __aenter__(self) -> Self:
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.client.close()
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        await self.client.aclose()
 
     def _log_request(self, response: Response) -> None:
         """Log request and response details at debug level."""
@@ -120,7 +124,7 @@ class GrafanaClient:
         if response.is_error:
             raise GrafanaApiError(response)
 
-    def create_folder(
+    async def create_folder(
         self, title: str, uid: str | None = None, parent_uid: str | None = None
     ) -> CreateFolderResponse:
         """Create a new folder in Grafana.
@@ -142,11 +146,11 @@ class GrafanaClient:
         if parent_uid:
             data["parentUid"] = parent_uid
 
-        response = self.client.post("/api/folders", json=data)
+        response = await self.client.post("/api/folders", json=data)
         self._handle_error(response)
         return CreateFolderResponse.model_validate_json(response.content)
 
-    def delete_folder(self, uid: str) -> None:
+    async def delete_folder(self, uid: str) -> None:
         """Delete a folder in Grafana.
 
         Args:
@@ -155,10 +159,10 @@ class GrafanaClient:
         Raises:
             HTTPError: If the request fails
         """
-        response = self.client.delete(f"/api/folders/{uid}")
+        response = await self.client.delete(f"/api/folders/{uid}")
         self._handle_error(response)
 
-    def get_folders(self, parent_uid: str | None = None) -> GetFoldersResponse:
+    async def get_folders(self, parent_uid: str | None = None) -> GetFoldersResponse:
         """Get all folders in Grafana, optionally filtered by parent UID.
 
         Args:
@@ -174,11 +178,11 @@ class GrafanaClient:
         if parent_uid and parent_uid != FOLDER_GENERAL:
             params["parentUid"] = parent_uid
 
-        response = self.client.get("/api/folders", params=params)
+        response = await self.client.get("/api/folders", params=params)
         self._handle_error(response)
         return GetFoldersResponse.model_validate_json(response.content)
 
-    def get_folder(self, uid: str) -> GetFolderResponse:
+    async def get_folder(self, uid: str) -> GetFolderResponse:
         """Get a specific folder by UID.
 
         Args:
@@ -190,11 +194,11 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails or folder doesn't exist
         """
-        response = self.client.get(f"/api/folders/{uid}")
+        response = await self.client.get(f"/api/folders/{uid}")
         self._handle_error(response)
         return GetFolderResponse.model_validate_json(response.content)
 
-    def update_folder(
+    async def update_folder(
         self,
         uid: str,
         title: str,
@@ -230,11 +234,11 @@ class GrafanaClient:
         if parent_uid:
             data["parentUid"] = parent_uid
 
-        response = self.client.put(f"/api/folders/{uid}", json=data)
+        response = await self.client.put(f"/api/folders/{uid}", json=data)
         self._handle_error(response)
         return UpdateFolderResponse.model_validate_json(response.content)
 
-    def move_folder(
+    async def move_folder(
         self, uid: str, new_parent_uid: str | None = None
     ) -> UpdateFolderResponse:
         """Move a folder to a new parent folder.
@@ -250,17 +254,17 @@ class GrafanaClient:
             GrafanaApiError: If the request fails
         """
         # Get current folder details to preserve title
-        current = self.get_folder(uid)
+        current = await self.get_folder(uid)
 
         # Update folder with new parent
-        return self.update_folder(
+        return await self.update_folder(
             uid=uid,
             title=current.title,
             parent_uid=new_parent_uid,
             overwrite=True,
         )
 
-    def search_dashboards(
+    async def search_dashboards(
         self,
         folder_uids: list[str] | None = None,
         query: str | None = None,
@@ -290,11 +294,11 @@ class GrafanaClient:
         if tag:
             params["tag"] = tag
 
-        response = self.client.get("/api/search", params=params)
+        response = await self.client.get("/api/search", params=params)
         self._handle_error(response)
         return SearchDashboardsResponse.model_validate_json(response.content)
 
-    def update_dashboard(
+    async def update_dashboard(
         self, dashboard_data: DashboardData, folder_uid: str | None = None
     ) -> UpdateDashboardResponse:
         """Update or create a dashboard in Grafana.
@@ -317,13 +321,13 @@ class GrafanaClient:
             folderUid=None if folder_uid == FOLDER_GENERAL else folder_uid,
         )
 
-        response = self.client.post(
+        response = await self.client.post(
             "/api/dashboards/db", json=payload.model_dump(exclude={"dashboard": {"id"}})
         )
         self._handle_error(response)
         return UpdateDashboardResponse.model_validate_json(response.content)
 
-    def delete_dashboard(self, uid: str) -> None:
+    async def delete_dashboard(self, uid: str) -> None:
         """Delete a dashboard in Grafana.
 
         Args:
@@ -332,10 +336,10 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails
         """
-        response = self.client.delete(f"/api/dashboards/uid/{uid}")
+        response = await self.client.delete(f"/api/dashboards/uid/{uid}")
         self._handle_error(response)
 
-    def get_dashboard(self, uid: str) -> GetDashboardResponse:
+    async def get_dashboard(self, uid: str) -> GetDashboardResponse:
         """Get a dashboard by its UID.
 
         Args:
@@ -347,11 +351,11 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails or dashboard doesn't exist
         """
-        response = self.client.get(f"/api/dashboards/uid/{uid}")
+        response = await self.client.get(f"/api/dashboards/uid/{uid}")
         self._handle_error(response)
         return GetDashboardResponse.model_validate_json(response.content)
 
-    def get_reports(self) -> GetReportsResponse:
+    async def get_reports(self) -> GetReportsResponse:
         """Get all reports.
 
         Returns:
@@ -360,11 +364,11 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails
         """
-        response = self.client.get("/api/reports")
+        response = await self.client.get("/api/reports")
         self._handle_error(response)
         return GetReportsResponse.model_validate_json(response.content)
 
-    def get_report(self, report_id: int) -> GetReportResponse:
+    async def get_report(self, report_id: int) -> GetReportResponse:
         """Get a report by its ID.
 
         Args:
@@ -376,11 +380,11 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails
         """
-        response = self.client.get(f"/api/reports/{report_id}")
+        response = await self.client.get(f"/api/reports/{report_id}")
         self._handle_error(response)
         return GetReportResponse.model_validate_json(response.content)
 
-    def create_report(self, report: Report) -> GetReportResponse:
+    async def create_report(self, report: Report) -> GetReportResponse:
         """Create a new report.
 
         Args:
@@ -392,13 +396,13 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails
         """
-        response = self.client.post(
+        response = await self.client.post(
             "/api/reports", json=report.model_dump(exclude={"id"})
         )
         self._handle_error(response)
         return GetReportResponse.model_validate_json(response.content)
 
-    def delete_report(self, report_id: int) -> None:
+    async def delete_report(self, report_id: int) -> None:
         """Delete a report.
 
         Args:
@@ -407,15 +411,15 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails
         """
-        response = self.client.delete(f"/api/reports/{report_id}")
+        response = await self.client.delete(f"/api/reports/{report_id}")
         self._handle_error(response)
 
-    def walk(
+    async def walk(
         self,
         folder_uid: str = FOLDER_GENERAL,
         recursive: bool = False,
         include_dashboards: bool = True,
-    ) -> Iterable[tuple[str, GetFoldersResponse, SearchDashboardsResponse]]:
+    ) -> AsyncGenerator[tuple[str, GetFoldersResponse, SearchDashboardsResponse], None]:
         """Walk through Grafana folder structure, similar to os.walk.
 
         Args:
@@ -427,11 +431,11 @@ class GrafanaClient:
             Tuple of (folder_uid, subfolders, dashboards)
         """
         logger.debug("fetching folders for folder_uid %s", folder_uid)
-        subfolders = self.get_folders(parent_uid=folder_uid)
+        subfolders = await self.get_folders(parent_uid=folder_uid)
 
         if include_dashboards:
             logger.debug("searching dashboards for folder_uid %s", folder_uid)
-            dashboards = self.search_dashboards(
+            dashboards = await self.search_dashboards(
                 folder_uids=[folder_uid],
                 type_="dash-db",
             )
@@ -442,4 +446,15 @@ class GrafanaClient:
 
         if recursive:
             for folder in subfolders.root:
-                yield from self.walk(folder.uid, recursive, include_dashboards)
+                async for res in self.walk(folder.uid, recursive, include_dashboards):
+                    yield res
+
+    async def check_pristine(self) -> None:
+        folders = (await self.get_folders()).root
+        if len(folders) > 0:
+            raise ExistingFoldersError(len(folders))
+
+        # Check for dashboards in the general folder
+        dashboards = (await self.search_dashboards()).root
+        if len(dashboards) > 0:
+            raise ExistingDashboardsError(len(dashboards))

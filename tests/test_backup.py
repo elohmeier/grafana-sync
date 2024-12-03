@@ -8,14 +8,7 @@ from grafana_sync.api.client import GrafanaClient
 from grafana_sync.api.models import DashboardData
 from grafana_sync.backup import GrafanaBackup
 
-from .utils import docker_grafana_client
-
 pytestmark = pytest.mark.docker
-
-
-@pytest.fixture(scope="session")
-def grafana(docker_ip, docker_services):
-    return docker_grafana_client(docker_ip, docker_services)
 
 
 @pytest.fixture
@@ -34,16 +27,16 @@ def test_backup_directories_creation(grafana: GrafanaClient, backup_dir: Path):
     assert (backup_dir / "dashboards").is_dir()
 
 
-def test_backup_folder(grafana: GrafanaClient, backup_dir: Path):
+async def test_backup_folder(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create a test folder
     folder_uid = "test-folder"
-    grafana.create_folder(title="Test Folder", uid=folder_uid)
+    await grafana.create_folder(title="Test Folder", uid=folder_uid)
 
     try:
         # Backup the folder
-        backup.backup_folder(folder_uid)
+        await backup.backup_folder(folder_uid)
 
         # Check if backup file exists
         backup_file = backup_dir / "folders" / f"{folder_uid}.json"
@@ -56,25 +49,25 @@ def test_backup_folder(grafana: GrafanaClient, backup_dir: Path):
             assert folder_data["title"] == "Test Folder"
 
     finally:
-        grafana.delete_folder(folder_uid)
+        await grafana.delete_folder(folder_uid)
 
 
-def test_walk_backup(grafana: GrafanaClient, backup_dir: Path):
+async def test_walk_backup(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create test folders and dashboards
-    grafana.create_folder(title="L1", uid="l1")
-    grafana.create_folder(title="L2", uid="l2", parent_uid="l1")
+    await grafana.create_folder(title="L1", uid="l1")
+    await grafana.create_folder(title="L2", uid="l2", parent_uid="l1")
 
     dashboard1 = DashboardData(uid="dash1", title="Dashboard 1")
     dashboard2 = DashboardData(uid="dash2", title="Dashboard 2")
 
-    grafana.update_dashboard(dashboard1, "l1")
-    grafana.update_dashboard(dashboard2, "l2")
+    await grafana.update_dashboard(dashboard1, "l1")
+    await grafana.update_dashboard(dashboard2, "l2")
 
     try:
         # Backup everything first
-        backup.backup_recursive()
+        await backup.backup_recursive()
 
         # Test walk_backup
         walk_result = list(backup.walk_backup())
@@ -98,21 +91,21 @@ def test_walk_backup(grafana: GrafanaClient, backup_dir: Path):
         assert simplified == expected
 
     finally:
-        grafana.delete_dashboard("dash1")
-        grafana.delete_dashboard("dash2")
-        grafana.delete_folder("l1")
+        await grafana.delete_dashboard("dash1")
+        await grafana.delete_dashboard("dash2")
+        await grafana.delete_folder("l1")
 
 
-def test_backup_recursive(grafana: GrafanaClient, backup_dir: Path):
+async def test_backup_recursive(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create test folders
-    grafana.create_folder(title="L1", uid="l1")
-    grafana.create_folder(title="L2", uid="l2", parent_uid="l1")
+    await grafana.create_folder(title="L1", uid="l1")
+    await grafana.create_folder(title="L2", uid="l2", parent_uid="l1")
 
     try:
         # Perform recursive backup
-        backup.backup_recursive()
+        await backup.backup_recursive()
 
         # Check if backup files exist
         assert (backup_dir / "folders" / "l1.json").exists()
@@ -131,20 +124,20 @@ def test_backup_recursive(grafana: GrafanaClient, backup_dir: Path):
             assert l2_data["parentUid"] == "l1"
 
     finally:
-        grafana.delete_folder("l1")
+        await grafana.delete_folder("l1")
 
 
-def test_backup_dashboard(grafana: GrafanaClient, backup_dir: Path):
+async def test_backup_dashboard(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
     # Create a test dashboard
     dashboard = DashboardData(uid="test-dashboard", title="Test Dashboard")
 
-    grafana.update_dashboard(dashboard)
+    await grafana.update_dashboard(dashboard)
 
     try:
         # Backup the dashboard
-        backup.backup_dashboard("test-dashboard")
+        await backup.backup_dashboard("test-dashboard")
 
         # Check if backup file exists
         backup_file = backup_dir / "dashboards" / "test-dashboard.json"
@@ -157,4 +150,4 @@ def test_backup_dashboard(grafana: GrafanaClient, backup_dir: Path):
             assert dashboard_data["dashboard"]["title"] == "Test Dashboard"
 
     finally:
-        grafana.delete_dashboard("test-dashboard")
+        await grafana.delete_dashboard("test-dashboard")

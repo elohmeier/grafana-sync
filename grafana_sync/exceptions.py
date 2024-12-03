@@ -6,6 +6,28 @@ if TYPE_CHECKING:
     from httpx import Response
 
 
+class GrafanaNotPristineError(Exception):
+    """Base exception for when Grafana instance is not in a pristine state."""
+
+
+class ExistingFoldersError(GrafanaNotPristineError):
+    """Raised when Grafana instance has existing folders."""
+
+    def __init__(self, folder_count: int):
+        self.folder_count = folder_count
+        message = f"Grafana instance has {folder_count} existing folder(s)"
+        super().__init__(message)
+
+
+class ExistingDashboardsError(GrafanaNotPristineError):
+    """Raised when Grafana instance has existing dashboards."""
+
+    def __init__(self, dashboard_count: int):
+        self.dashboard_count = dashboard_count
+        message = f"Grafana instance has {dashboard_count} existing dashboard(s)"
+        super().__init__(message)
+
+
 class GrafanaRestoreError(Exception):
     """Base exception for restore operations."""
 

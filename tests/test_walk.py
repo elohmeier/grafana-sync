@@ -8,17 +8,11 @@ from grafana_sync.api.models import (
     SearchDashboardsResponse,
 )
 
-from .utils import docker_grafana_client
-
 if TYPE_CHECKING:
     from grafana_sync.api.client import GrafanaClient
 
+
 pytestmark = pytest.mark.docker
-
-
-@pytest.fixture(scope="session")
-def grafana(docker_ip, docker_services):
-    return docker_grafana_client(docker_ip, docker_services)
 
 
 def _to_dicts(items: GetFoldersResponse | SearchDashboardsResponse):
@@ -33,11 +27,11 @@ def _to_dicts(items: GetFoldersResponse | SearchDashboardsResponse):
     ]
 
 
-def test_walk_single_folder(grafana: "GrafanaClient"):
-    grafana.create_folder(title="dummy", uid="dummy", parent_uid=None)
+async def test_walk_single_folder(grafana: "GrafanaClient"):
+    await grafana.create_folder(title="dummy", uid="dummy", parent_uid=None)
 
     try:
-        lst = list(grafana.walk("general", True, True))
+        lst = [res async for res in grafana.walk("general", True, True)]
         lst = [
             (folder_uid, _to_dicts(folders), _to_dicts(dashboards))
             for folder_uid, folders, dashboards in lst
@@ -47,15 +41,15 @@ def test_walk_single_folder(grafana: "GrafanaClient"):
             ("dummy", [], []),
         ]
     finally:
-        grafana.delete_folder("dummy")
+        await grafana.delete_folder("dummy")
 
 
-def test_walk_recursive_folders(grafana: "GrafanaClient"):
-    grafana.create_folder(title="l1", uid="l1", parent_uid=None)
-    grafana.create_folder(title="l2", uid="l2", parent_uid="l1")
+async def test_walk_recursive_folders(grafana: "GrafanaClient"):
+    await grafana.create_folder(title="l1", uid="l1", parent_uid=None)
+    await grafana.create_folder(title="l2", uid="l2", parent_uid="l1")
 
     try:
-        lst = list(grafana.walk("general", True, True))
+        lst = [res async for res in grafana.walk("general", True, True)]
         lst = [
             (folder_uid, _to_dicts(folders), _to_dicts(dashboards))
             for folder_uid, folders, dashboards in lst
@@ -66,10 +60,10 @@ def test_walk_recursive_folders(grafana: "GrafanaClient"):
             ("l2", [], []),
         ]
     finally:
-        grafana.delete_folder("l1")
+        await grafana.delete_folder("l1")
 
 
-def test_walk_recursive_with_dashboards(grafana: "GrafanaClient"):
+async def test_walk_recursive_with_dashboards(grafana: "GrafanaClient"):
     """Test walking folders recursively with dashboards at different levels."""
     # Create test structure:
     # l1/
@@ -78,18 +72,18 @@ def test_walk_recursive_with_dashboards(grafana: "GrafanaClient"):
     #     dashboard2
 
     # Create folders
-    grafana.create_folder(title="l1", uid="l1", parent_uid=None)
-    grafana.create_folder(title="l2", uid="l2", parent_uid="l1")
+    await grafana.create_folder(title="l1", uid="l1", parent_uid=None)
+    await grafana.create_folder(title="l2", uid="l2", parent_uid="l1")
 
     # Create dashboards
     dashboard1 = DashboardData(uid="dash1", title="Dashboard 1")
     dashboard2 = DashboardData(uid="dash2", title="Dashboard 2")
 
-    grafana.update_dashboard(dashboard1, "l1")
-    grafana.update_dashboard(dashboard2, "l2")
+    await grafana.update_dashboard(dashboard1, "l1")
+    await grafana.update_dashboard(dashboard2, "l2")
 
     try:
-        lst = list(grafana.walk("general", True, True))
+        lst = [res async for res in grafana.walk("general", True, True)]
         lst = [
             (folder_uid, _to_dicts(folders), _to_dicts(dashboards))
             for folder_uid, folders, dashboards in lst
@@ -121,22 +115,22 @@ def test_walk_recursive_with_dashboards(grafana: "GrafanaClient"):
         ]
     finally:
         # Clean up
-        grafana.delete_dashboard("dash1")
-        grafana.delete_dashboard("dash2")
-        grafana.delete_folder("l1")  # This will cascade delete l2
+        await grafana.delete_dashboard("dash1")
+        await grafana.delete_dashboard("dash2")
+        await grafana.delete_folder("l1")  # This will cascade delete l2
 
 
-def test_list_command(grafana: "GrafanaClient"):
+async def test_list_command(grafana: "GrafanaClient"):
     """Test that list command runs without errors."""
-    from click.testing import CliRunner
+    from asyncclick.testing import CliRunner
 
     from grafana_sync.cli import cli
 
-    grafana.create_folder(title="test", uid="test", parent_uid=None)
+    await grafana.create_folder(title="test", uid="test", parent_uid=None)
 
     try:
         runner = CliRunner()
-        result = runner.invoke(
+        result = await runner.invoke(
             cli,
             [
                 "--url",
@@ -152,4 +146,4 @@ def test_list_command(grafana: "GrafanaClient"):
         )
         assert result.exit_code == 0
     finally:
-        grafana.delete_folder("test")
+        await grafana.delete_folder("test")

@@ -8,10 +8,10 @@ license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 classifiers = ["License :: OSI Approved :: Apache Software License"]
 dependencies = [
-    "click>=8.1.7",
-    "httpx>=0.28.0",
-    "pydantic>=2.10.2",
-    "rich>=13.9.4",
+  "asyncclick>=8.1.7",
+  "httpx>=0.28.0",
+  "pydantic>=2.10.2",
+  "rich>=13.9.4",
 ]
 
 [build-system]
@@ -28,7 +28,8 @@ CI = "https://github.com/elohmeier/grafana-sync/actions"
 grafana-sync = "grafana_sync.cli:cli"
 
 [project.optional-dependencies]
-test = ["pytest", "pytest-docker"]
+test = ["pytest", "pytest-docker", "pytest-asyncio"]
 
 [tool.pytest.ini_options]
 markers = ["docker"]
+asyncio_mode = "auto"

@@ -22,19 +22,19 @@ class GrafanaSync:
         self.dst_grafana = dst_grafana
         self.folder_relocation_queue: dict[str, str] = {}
 
-    def sync_folder(
+    async def sync_folder(
         self,
         folder_uid: str,
         can_move: bool,
     ) -> None:
         """Sync a single folder from source to destination Grafana instance."""
-        src_folder = self.src_grafana.get_folder(folder_uid)
+        src_folder = await self.src_grafana.get_folder(folder_uid)
         title = src_folder.title
         parent_uid = src_folder.parentUid or FOLDER_GENERAL
 
         # Check if folder already exists
         try:
-            existing_dst_folder = self.dst_grafana.get_folder(folder_uid)
+            existing_dst_folder = await self.dst_grafana.get_folder(folder_uid)
         except Exception:
             # Folder doesn't exist, create it
             logger.info("Creating folder '%s' in destination", title)
@@ -44,13 +44,13 @@ class GrafanaSync:
                 else:
                     # Check if parent_uid is available in dst
                     try:
-                        self.dst_grafana.get_folder(parent_uid)
+                        await self.dst_grafana.get_folder(parent_uid)
                     except Exception:
                         dst_parent_uid = None
                     else:
                         dst_parent_uid = parent_uid
 
-                self.dst_grafana.create_folder(
+                await self.dst_grafana.create_folder(
                     title=title, uid=folder_uid, parent_uid=dst_parent_uid
                 )
                 logger.info("Created folder '%s' (uid: %s)", title, folder_uid)
@@ -60,7 +60,7 @@ class GrafanaSync:
             if existing_dst_folder.title != title:
                 logger.info("Updating folder title '%s' in destination", title)
                 try:
-                    self.dst_grafana.update_folder(
+                    await self.dst_grafana.update_folder(
                         uid=folder_uid,
                         title=title,
                         overwrite=True,
@@ -76,10 +76,10 @@ class GrafanaSync:
                 # since a parent might not exist yet, we enqueue the relocations
                 self.folder_relocation_queue[folder_uid] = parent_uid
 
-    def move_folders_to_new_parents(self) -> None:
+    async def move_folders_to_new_parents(self) -> None:
         for folder_uid, parent_uid in self.folder_relocation_queue.items():
             try:
-                self.dst_grafana.move_folder(
+                await self.dst_grafana.move_folder(
                     folder_uid, parent_uid if parent_uid != FOLDER_GENERAL else None
                 )
                 logger.info(
@@ -95,7 +95,7 @@ class GrafanaSync:
 
         self.folder_relocation_queue.clear()
 
-    def get_folder_dashboards(
+    async def get_folder_dashboards(
         self,
         grafana: "GrafanaClient",
         folder_uid: str,
@@ -105,7 +105,7 @@ class GrafanaSync:
         dashboard_uids = set()
 
         try:
-            for _, _, dashboards in grafana.walk(
+            async for _, _, dashboards in grafana.walk(
                 folder_uid, recursive, include_dashboards=True
             ):
                 for dashboard in dashboards.root:
@@ -115,10 +115,10 @@ class GrafanaSync:
 
         return dashboard_uids
 
-    def delete_dashboard(self, dashboard_uid: str) -> bool:
+    async def delete_dashboard(self, dashboard_uid: str) -> bool:
         """Delete a dashboard from destination Grafana instance."""
         try:
-            self.dst_grafana.delete_dashboard(dashboard_uid)
+            await self.dst_grafana.delete_dashboard(dashboard_uid)
             logger.info("Deleted dashboard with uid: %s", dashboard_uid)
             return True
         except Exception as e:
@@ -129,7 +129,7 @@ class GrafanaSync:
         """Remove dynamic fields from dashboard data for comparison."""
         return dashboard_data.model_dump(exclude={"id", "version"})
 
-    def sync_dashboard(
+    async def sync_dashboard(
         self,
         dashboard_uid: str,
         folder_uid: str | None = None,
@@ -140,7 +140,7 @@ class GrafanaSync:
         """
         try:
             # Get dashboard from source
-            src_dashboard = self.src_grafana.get_dashboard(dashboard_uid)
+            src_dashboard = await self.src_grafana.get_dashboard(dashboard_uid)
             if not src_dashboard:
                 logger.error("Dashboard %s not found in source", dashboard_uid)
                 return False
@@ -149,7 +149,7 @@ class GrafanaSync:
 
             # Check if dashboard exists in destination
             try:
-                dst_dashboard = self.dst_grafana.get_dashboard(dashboard_uid)
+                dst_dashboard = await self.dst_grafana.get_dashboard(dashboard_uid)
                 dst_data = dst_dashboard.dashboard
 
                 # Compare dashboards after cleaning
@@ -167,7 +167,7 @@ class GrafanaSync:
                 pass
 
             # Import dashboard to destination
-            self.dst_grafana.update_dashboard(
+            await self.dst_grafana.update_dashboard(
                 src_data,
                 folder_uid=folder_uid if folder_uid != FOLDER_GENERAL else None,
             )

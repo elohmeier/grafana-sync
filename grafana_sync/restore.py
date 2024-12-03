@@ -31,7 +31,7 @@ class GrafanaRestore:
         self.dashboards_path = self.backup_path / "dashboards"
         self.reports_path = self.backup_path / "reports"
 
-    def restore_folder(self, folder_uid: str) -> None:
+    async def restore_folder(self, folder_uid: str) -> None:
         """Restore a single folder from local storage."""
         folder_file = self.folders_path / f"{folder_uid}.json"
 
@@ -43,23 +43,23 @@ class GrafanaRestore:
 
         try:
             # Try to get existing folder
-            self.grafana.get_folder(folder_uid)
+            await self.grafana.get_folder(folder_uid)
             # Update existing folder - note: parent_uid not supported in update
-            self.grafana.update_folder(
+            await self.grafana.update_folder(
                 folder_uid, title=folder_data.title, overwrite=True
             )
             logger.info("Updated folder '%s' from %s", folder_data.title, folder_file)
         except Exception as e:
             logger.debug("Failed to update folder: %s", e)
             # Create new folder if it doesn't exist
-            self.grafana.create_folder(
+            await self.grafana.create_folder(
                 title=folder_data.title,
                 uid=folder_data.uid,
                 parent_uid=folder_data.parentUid,
             )
             logger.info("Created folder '%s' from %s", folder_data.title, folder_file)
 
-    def restore_dashboard(self, dashboard_uid: str) -> None:
+    async def restore_dashboard(self, dashboard_uid: str) -> None:
         """Restore a single dashboard from local storage."""
         dashboard_file = self.dashboards_path / f"{dashboard_uid}.json"
 
@@ -69,7 +69,7 @@ class GrafanaRestore:
         with dashboard_file.open() as f:
             dashboard_data = GetDashboardResponse.model_validate_json(f.read())
 
-        self.grafana.update_dashboard(
+        await self.grafana.update_dashboard(
             dashboard_data.dashboard, dashboard_data.meta.folderUid
         )
         logger.info(
@@ -78,7 +78,7 @@ class GrafanaRestore:
             dashboard_file,
         )
 
-    def restore_report(self, report_id: int) -> None:
+    async def restore_report(self, report_id: int) -> None:
         """Restore a single report from local storage."""
         report_file = self.reports_path / f"{report_id}.json"
 
@@ -88,26 +88,26 @@ class GrafanaRestore:
         with report_file.open() as f:
             report_data = GetReportResponse.model_validate_json(f.read())
 
-        self.grafana.create_report(report_data.report)
+        await self.grafana.create_report(report_data.report)
         logger.info(
             "Restored report '%s' from %s",
             report_data.report.name,
             report_file,
         )
 
-    def restore_recursive(self, include_reports: bool = False) -> None:
+    async def restore_recursive(self, include_reports: bool = False) -> None:
         """Recursively restore all folders, dashboards and reports from backup."""
         backup = GrafanaBackup(self.grafana, self.backup_path)
         # First restore all folders (except General)
         for folder_uid, _, dashboards in backup.walk_backup():
             if folder_uid != FOLDER_GENERAL:
-                self.restore_folder(folder_uid)
+                await self.restore_folder(folder_uid)
             # Restore dashboards in this folder
             for dashboard in dashboards:
-                self.restore_dashboard(dashboard.dashboard.uid)
+                await self.restore_dashboard(dashboard.dashboard.uid)
 
         # Restore reports if requested
         if include_reports:
             for report_file in self.reports_path.glob("*.json"):
                 report_id = int(report_file.stem)
-                self.restore_report(report_id)
+                await self.restore_report(report_id)

@@ -33,9 +33,9 @@ class GrafanaBackup:
         self.dashboards_path.mkdir(parents=True, exist_ok=True)
         self.reports_path.mkdir(parents=True, exist_ok=True)
 
-    def backup_folder(self, folder_uid: str) -> None:
+    async def backup_folder(self, folder_uid: str) -> None:
         """Backup a single folder to local storage."""
-        folder_data = self.grafana.get_folder(folder_uid)
+        folder_data = await self.grafana.get_folder(folder_uid)
         folder_file = self.folders_path / f"{folder_uid}.json"
 
         with folder_file.open("w") as f:
@@ -43,9 +43,9 @@ class GrafanaBackup:
 
         logger.info("Backed up folder '%s' to %s", folder_data.title, folder_file)
 
-    def backup_dashboard(self, dashboard_uid: str) -> None:
+    async def backup_dashboard(self, dashboard_uid: str) -> None:
         """Backup a single dashboard to local storage."""
-        dashboard = self.grafana.get_dashboard(dashboard_uid)
+        dashboard = await self.grafana.get_dashboard(dashboard_uid)
         if not dashboard:
             logger.error("Dashboard %s not found", dashboard_uid)
             return
@@ -106,9 +106,9 @@ class GrafanaBackup:
 
         yield from walk_recursive(folder_uid)
 
-    def backup_report(self, report_id: int) -> None:
+    async def backup_report(self, report_id: int) -> None:
         """Backup a single report to local storage."""
-        report = self.grafana.get_report(report_id)
+        report = await self.grafana.get_report(report_id)
         report_file = self.reports_path / f"{report_id}.json"
 
         with report_file.open("w") as f:
@@ -116,7 +116,7 @@ class GrafanaBackup:
 
         logger.info("Backed up report '%s' to %s", report.report.name, report_file)
 
-    def backup_recursive(
+    async def backup_recursive(
         self,
         folder_uid: str = FOLDER_GENERAL,
         include_dashboards: bool = True,
@@ -125,22 +125,22 @@ class GrafanaBackup:
         """Recursively backup folders, dashboards, and reports starting from a folder."""
         self._ensure_backup_dirs()
 
-        for folder_uid, _, dashboards in self.grafana.walk(
+        async for folder_uid, _, dashboards in self.grafana.walk(
             folder_uid,
             recursive=True,
             include_dashboards=include_dashboards,
         ):
             # Backup folder
             if folder_uid != FOLDER_GENERAL:
-                self.backup_folder(folder_uid)
+                await self.backup_folder(folder_uid)
 
             # Backup dashboards
             if include_dashboards:
                 for dashboard in dashboards.root:
-                    self.backup_dashboard(dashboard.uid)
+                    await self.backup_dashboard(dashboard.uid)
 
         # Backup reports
         if include_reports:
-            reports = self.grafana.get_reports()
+            reports = await self.grafana.get_reports()
             for report in reports.root:
-                self.backup_report(report.id)
+                await self.backup_report(report.id)

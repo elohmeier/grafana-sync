@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Mapping
 
-import click
+import asyncclick as click
 from rich import print as rprint
 from rich import print_json
 from rich.tree import Tree
@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
     help="Grafana password for basic authentication",
 )
 @click.pass_context
-def cli(
+async def cli(
     ctx: click.Context,
     url: str,
     api_key: str | None,
@@ -65,7 +65,9 @@ def cli(
     """Sync Grafana dashboards and folders."""
     logging.basicConfig(level=getattr(logging, log_level.upper()))
     try:
-        ctx.obj = ctx.with_resource(GrafanaClient(url, api_key, username, password))
+        ctx.obj = await ctx.with_async_resource(
+            GrafanaClient(url, api_key, username, password)
+        )
     except ValueError as ex:
         raise click.UsageError(ex.args[0]) from ex
 
@@ -96,7 +98,7 @@ def cli(
     help="Display output in JSON format",
 )
 @click.pass_context
-def list_folders(
+async def list_folders(
     ctx: click.Context,
     folder_uid: str,
     recursive: bool,
@@ -176,13 +178,13 @@ def list_folders(
 
     folder_nodes: Mapping[str | None, TreeFolderItem] = {}
 
-    for root_uid, folders, dashboards in grafana.walk(
+    async for root_uid, folders, dashboards in grafana.walk(
         folder_uid, recursive, include_dashboards
     ):
         if root_uid in folder_nodes:
             root_node = folder_nodes[root_uid]
         else:
-            root_folder_data = grafana.get_folder(root_uid)
+            root_folder_data = await grafana.get_folder(root_uid)
             root_node = TreeFolderItem(root_folder_data)
             folder_nodes[root_uid] = root_node
 
@@ -250,7 +252,7 @@ def list_folders(
     help="Remove dashboards in destination that don't exist in source",
 )
 @click.pass_context
-def sync_folders(
+async def sync_folders(
     ctx: click.Context,
     dst_url: str,
     dst_api_key: str | None,
@@ -263,7 +265,9 @@ def sync_folders(
 ) -> None:
     """Sync folders from source to destination Grafana instance."""
     src_grafana = ctx.ensure_object(GrafanaClient)
-    with GrafanaClient(dst_url, dst_api_key, dst_username, dst_password) as dst_grafana:
+    async with GrafanaClient(
+        dst_url, dst_api_key, dst_username, dst_password
+    ) as dst_grafana:
         syncer = GrafanaSync(src_grafana, dst_grafana)
 
         # Track source dashboards if pruning is enabled
@@ -272,20 +276,20 @@ def sync_folders(
 
         if include_dashboards and prune:
             # Get all dashboards in destination folders before we start syncing
-            dst_dashboard_uids = syncer.get_folder_dashboards(
+            dst_dashboard_uids = await syncer.get_folder_dashboards(
                 dst_grafana, folder_uid, recursive
             )
 
         # if a folder was requested sync it first
         if folder_uid != FOLDER_GENERAL:
-            syncer.sync_folder(folder_uid, can_move=False)
+            await syncer.sync_folder(folder_uid, can_move=False)
 
         # Now walk and sync child folders and optionally dashboards
-        for root_uid, folders, dashboards in src_grafana.walk(
+        async for root_uid, folders, dashboards in src_grafana.walk(
             folder_uid, recursive, include_dashboards=include_dashboards
         ):
             for folder in folders.root:
-                syncer.sync_folder(folder.uid, can_move=True)
+                await syncer.sync_folder(folder.uid, can_move=True)
 
             # Sync dashboards if requested
             if include_dashboards:
@@ -294,13 +298,13 @@ def sync_folders(
                     if syncer.sync_dashboard(dashboard_uid, root_uid):
                         src_dashboard_uids.add(dashboard_uid)
 
-        syncer.move_folders_to_new_parents()
+        await syncer.move_folders_to_new_parents()
 
         # Prune dashboards that don't exist in source
         if include_dashboards and prune:
             dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
             for dashboard_uid in dashboards_to_delete:
-                syncer.delete_dashboard(dashboard_uid)
+                await syncer.delete_dashboard(dashboard_uid)
 
 
 @cli.command(name="backup")
@@ -334,7 +338,7 @@ def sync_folders(
     help="Include reports in the backup",
 )
 @click.pass_context
-def backup_folders(
+async def backup_folders(
     ctx: click.Context,
     folder_uid: str,
     recursive: bool,
@@ -348,20 +352,20 @@ def backup_folders(
 
     if folder_uid != FOLDER_GENERAL:
         # Backup the specified folder first
-        backup.backup_folder(folder_uid)
+        await backup.backup_folder(folder_uid)
 
     if recursive:
         # Recursively backup from the specified folder
-        backup.backup_recursive(folder_uid, include_dashboards, include_reports)
+        await backup.backup_recursive(folder_uid, include_dashboards, include_reports)
     elif include_dashboards:
         # Non-recursive, just backup dashboards in the specified folder
-        for _, _, dashboards in grafana.walk(
+        async for _, _, dashboards in grafana.walk(
             folder_uid,
             recursive=False,
             include_dashboards=True,
         ):
             for dashboard in dashboards.root:
-                backup.backup_dashboard(dashboard.uid)
+                await backup.backup_dashboard(dashboard.uid)
 
 
 @cli.command(name="restore")
@@ -393,7 +397,7 @@ def backup_folders(
     help="Include reports in the restore",
 )
 @click.pass_context
-def restore_folders(
+async def restore_folders(
     ctx: click.Context,
     folder_uid: str | None,
     dashboard_uid: str | None,
@@ -406,11 +410,11 @@ def restore_folders(
     restore = GrafanaRestore(grafana, backup_path)
 
     if recursive:
-        restore.restore_recursive(include_reports)
+        await restore.restore_recursive(include_reports)
     elif folder_uid:
-        restore.restore_folder(folder_uid)
+        await restore.restore_folder(folder_uid)
     elif dashboard_uid:
-        restore.restore_dashboard(dashboard_uid)
+        await restore.restore_dashboard(dashboard_uid)
     else:
         raise click.UsageError(
             "Either --recursive, --folder-uid or --dashboard-uid must be specified"
