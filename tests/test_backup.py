@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from grafana_sync.api import DashboardData, GrafanaClient
+from grafana_sync.api.client import GrafanaClient
+from grafana_sync.api.models import DashboardData
 from grafana_sync.backup import GrafanaBackup
 
 from .utils import docker_grafana_client

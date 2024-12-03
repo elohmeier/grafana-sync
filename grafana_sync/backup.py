@@ -2,14 +2,11 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Iterable, Sequence
 
-from grafana_sync.api import (
-    FOLDER_GENERAL,
-    GetDashboardResponse,
-    GetFoldersResponseItem,
-)
+from grafana_sync.api.client import FOLDER_GENERAL
+from grafana_sync.api.models import GetDashboardResponse, GetFoldersResponseItem
 
 if TYPE_CHECKING:
-    from grafana_sync.api import GrafanaClient
+    from grafana_sync.api.client import GrafanaClient
 
 logger = logging.getLogger(__name__)
 

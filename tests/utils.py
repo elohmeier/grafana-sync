@@ -1,7 +1,7 @@
 import httpx
 from pytest_docker.plugin import Services
 
-from grafana_sync.api import GrafanaClient
+from grafana_sync.api.client import GrafanaClient
 
 
 class GrafanaNotPristineError(Exception):

@@ -6,13 +6,13 @@ from rich import print as rprint
 from rich import print_json
 from rich.tree import Tree
 
-from grafana_sync.api import FOLDER_GENERAL, GrafanaClient
+from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
 from grafana_sync.backup import GrafanaBackup
 from grafana_sync.restore import GrafanaRestore
 from grafana_sync.sync import GrafanaSync
 
 if TYPE_CHECKING:
-    from grafana_sync.api import (
+    from grafana_sync.api.models import (
         GetFolderResponse,
         GetFoldersResponseItem,
         SearchDashboardsResponseItem,

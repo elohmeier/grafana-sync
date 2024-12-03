@@ -2,8 +2,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from grafana_sync.api import (
-    FOLDER_GENERAL,
+from grafana_sync.api.client import FOLDER_GENERAL
+from grafana_sync.api.models import (
     GetDashboardResponse,
     GetFolderResponse,
     GetReportResponse,
@@ -14,7 +14,7 @@ from grafana_sync.exceptions import BackupNotFoundError
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from grafana_sync.api import GrafanaClient
+    from grafana_sync.api.client import GrafanaClient
 
 
 class GrafanaRestore:

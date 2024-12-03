@@ -1,10 +1,11 @@
 import logging
 from typing import TYPE_CHECKING
 
-from grafana_sync.api import FOLDER_GENERAL, DashboardData
+from grafana_sync.api.client import FOLDER_GENERAL
 
 if TYPE_CHECKING:
-    from grafana_sync.api import GrafanaClient
+    from grafana_sync.api.client import GrafanaClient
+    from grafana_sync.api.models import DashboardData
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,7 @@ class GrafanaSync:
             logger.error("Failed to delete dashboard %s: %s", dashboard_uid, e)
             return False
 
-    def _clean_dashboard_for_comparison(self, dashboard_data: DashboardData) -> dict:
+    def _clean_dashboard_for_comparison(self, dashboard_data: "DashboardData") -> dict:
         """Remove dynamic fields from dashboard data for comparison."""
         return dashboard_data.model_dump(exclude={"id", "version"})
 

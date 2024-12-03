@@ -2,12 +2,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from grafana_sync.api import GetFoldersResponse, SearchDashboardsResponse
+from grafana_sync.api.models import GetFoldersResponse, SearchDashboardsResponse
 
 from .utils import docker_grafana_client
 
 if TYPE_CHECKING:
-    from grafana_sync.api import GrafanaClient
+    from grafana_sync.api.client import GrafanaClient
 
 pytestmark = pytest.mark.docker
 
