@@ -284,7 +284,7 @@ class GrafanaClient:
         params: dict = {"type": type_}
 
         if folder_uids:
-            params["folderUids"] = ",".join(folder_uids)
+            params["folderUIDs"] = ",".join(folder_uids)
         if query:
             params["query"] = query
         if tag:
@@ -427,9 +427,7 @@ class GrafanaClient:
             Tuple of (folder_uid, subfolders, dashboards)
         """
         logger.debug("fetching folders for folder_uid %s", folder_uid)
-        subfolders = self.get_folders(
-            parent_uid=folder_uid if folder_uid != FOLDER_GENERAL else None
-        )
+        subfolders = self.get_folders(parent_uid=folder_uid)
 
         if include_dashboards:
             logger.debug("searching dashboards for folder_uid %s", folder_uid)
