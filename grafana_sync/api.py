@@ -52,7 +52,6 @@ class GetFolderResponse(BaseModel):
     uid: str
     title: str
     url: str
-    version: int
     parentUid: str | None = None
 
 
@@ -397,7 +396,6 @@ class GrafanaClient:
         return self.update_folder(
             uid=uid,
             title=current.title,
-            version=current.version,
             parent_uid=new_parent_uid,
             overwrite=True,
         )
