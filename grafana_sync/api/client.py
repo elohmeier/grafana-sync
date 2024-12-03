@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 # reserved Grafana folder name for the top-level directory
 FOLDER_GENERAL = "general"
 
+# virtual folder
+FOLDER_SHAREDWITHME = "sharedwithme"
+
 
 class GrafanaClient:
     def __init__(

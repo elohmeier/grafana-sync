@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Generator, Iterable, Sequence
 
-from grafana_sync.api.client import FOLDER_GENERAL
+from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
 from grafana_sync.api.models import GetDashboardResponse, GetFoldersResponseItem
 
 if TYPE_CHECKING:
@@ -97,6 +97,10 @@ class GrafanaBackup:
         ) -> Iterable[
             tuple[str, Sequence[GetFoldersResponseItem], Sequence[GetDashboardResponse]]
         ]:
+            # skip special folder
+            if current_uid == FOLDER_SHAREDWITHME:
+                return
+
             subfolders = list(get_subfolders(current_uid))
             dashboards = list(get_dashboards(current_uid))
             yield current_uid, subfolders, dashboards

@@ -2,7 +2,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from grafana_sync.api.client import FOLDER_GENERAL
+from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
 from grafana_sync.api.models import (
     GetDashboardResponse,
     GetFolderResponse,
@@ -100,7 +100,7 @@ class GrafanaRestore:
         backup = GrafanaBackup(self.grafana, self.backup_path)
         # First restore all folders (except General)
         for folder_uid, _, dashboards in backup.walk_backup():
-            if folder_uid != FOLDER_GENERAL:
+            if folder_uid not in [FOLDER_GENERAL, FOLDER_SHAREDWITHME]:
                 await self.restore_folder(folder_uid)
             # Restore dashboards in this folder
             for dashboard in dashboards:
