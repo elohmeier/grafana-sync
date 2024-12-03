@@ -1,7 +1,10 @@
 import logging
+import os
 from typing import Iterable, Self
 from urllib.parse import urlparse
+import ssl
 
+import certifi
 import httpx
 from httpx import Response
 from pydantic import BaseModel, ConfigDict, Field, RootModel
@@ -206,11 +209,20 @@ class GrafanaClient:
         if url_path_prefix:
             base_url = f"{base_url}/{url_path_prefix}"
 
+        # Create SSL context using environment variables or certifi
+        ssl_context = ssl.create_default_context(
+            cafile=os.getenv("REQUESTS_CA_BUNDLE")
+            or os.getenv("SSL_CERT_FILE")
+            or certifi.where(),
+            capath=os.getenv("SSL_CERT_DIR"),
+        )
+
         self.client = httpx.Client(
             base_url=base_url,
             auth=auth,
             headers={"Content-Type": "application/json"},
             follow_redirects=True,
+            verify=ssl_context,
         )
 
     def __enter__(self) -> Self:
