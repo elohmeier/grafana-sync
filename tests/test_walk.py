@@ -9,6 +9,8 @@ from .utils import docker_grafana_client
 if TYPE_CHECKING:
     from grafana_sync.api import GrafanaClient
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.fixture(scope="session")
 def grafana(docker_ip, docker_services):

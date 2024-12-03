@@ -9,6 +9,8 @@ from grafana_sync.backup import GrafanaBackup
 
 from .utils import docker_grafana_client
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.fixture(scope="session")
 def grafana(docker_ip, docker_services):
