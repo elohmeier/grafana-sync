@@ -1,8 +1,8 @@
 import logging
 import os
+import ssl
 from typing import Iterable, Self
 from urllib.parse import urlparse
-import ssl
 
 import certifi
 import httpx
@@ -180,6 +180,8 @@ class GrafanaClient:
         password: str | None = None,
     ) -> None:
         """Create a Grafana API client from connection parameters."""
+        self.url = url
+        self.api_key = api_key
         parsed_url = urlparse(url)
         logging.debug("Parsing URL: %s", url)
         host = parsed_url.hostname or "localhost"
@@ -190,6 +192,9 @@ class GrafanaClient:
         if parsed_url.username and parsed_url.password and not (username or password):
             username = parsed_url.username
             password = parsed_url.password
+
+        self.username = username
+        self.password = password
 
         if api_key:
             auth = (api_key, "")

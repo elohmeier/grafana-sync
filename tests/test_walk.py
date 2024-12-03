@@ -56,3 +56,32 @@ def test_walk_recursive_folders(grafana: "GrafanaClient"):
         ]
     finally:
         grafana.delete_folder("l1")
+
+
+def test_list_command(grafana: "GrafanaClient"):
+    """Test that list command runs without errors."""
+    from click.testing import CliRunner
+
+    from grafana_sync.cli import cli
+
+    grafana.create_folder(title="test", uid="test", parent_uid=None)
+
+    try:
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "--url",
+                grafana.url,
+                "--username",
+                "admin",
+                "--password",
+                "admin",
+                "list",
+                "--recursive",
+                "--include-dashboards",
+            ],
+        )
+        assert result.exit_code == 0
+    finally:
+        grafana.delete_folder("test")
