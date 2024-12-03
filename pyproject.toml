@@ -29,3 +29,6 @@ grafana-sync = "grafana_sync.cli:cli"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-docker"]
+
+[tool.pytest.ini_options]
+markers = ["docker"]
