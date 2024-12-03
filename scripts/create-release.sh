@@ -82,9 +82,11 @@ if [ -z "$VERSION" ]; then
     fi
 fi
 
+TAG=v$VERSION
+
 # check if git tag exists
-if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-    echo "tag v$VERSION already exists"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "tag $TAG already exists"
     exit 1
 fi
 
@@ -123,6 +125,8 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 git commit -m "release $VERSION"
-git tag -a "v$VERSION" -m "release $VERSION"
+git tag -a "$TAG" -m "release $VERSION"
 
-git push --atomic origin main "v$VERSION"
+git push --atomic origin main "$TAG"
+
+gh release create "$TAG" --latest --verify-tag --generate-notes
