@@ -115,3 +115,37 @@ async def test_restore_recursive(grafana: GrafanaClient, backup_dir: Path):
         except Exception:
             pass
         await grafana.delete_folder(folder_uid)
+
+
+async def test_restore_recursive_top_level_dashboard(
+    grafana: GrafanaClient, backup_dir: Path
+):
+    backup = GrafanaBackup(grafana, backup_dir)
+    restore = GrafanaRestore(grafana, backup_dir)
+
+    # Create test structure
+    dashboard = DashboardData(
+        uid="test-restore-dash-recursive", title="Test Restore Dashboard Recursive"
+    )
+    await grafana.update_dashboard(dashboard)
+
+    try:
+        # Backup everything
+        await backup.backup_recursive()
+
+        # Delete everything
+        await grafana.delete_dashboard("test-restore-dash-recursive")
+
+        # Restore everything
+        await restore.restore_recursive()
+
+        # Verify dashboard was restored
+        dashboard = await grafana.get_dashboard("test-restore-dash-recursive")
+        assert dashboard.dashboard.uid == "test-restore-dash-recursive"
+        assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"
+
+    finally:
+        try:
+            await grafana.delete_dashboard("test-restore-dash-recursive")
+        except Exception:
+            pass

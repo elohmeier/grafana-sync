@@ -89,7 +89,10 @@ class GrafanaBackup:
             for dashboard_file in dashboards_path.glob("*.json"):
                 with dashboard_file.open() as f:
                     dashboard_data = GetDashboardResponse.model_validate_json(f.read())
-                if dashboard_data.meta.folderUid == folder_uid:
+                if folder_uid == FOLDER_GENERAL:
+                    if dashboard_data.meta.folderUid == "":
+                        yield dashboard_data
+                elif dashboard_data.meta.folderUid == folder_uid:
                     yield dashboard_data
 
         def walk_recursive(

@@ -96,6 +96,41 @@ async def test_walk_backup(grafana: GrafanaClient, backup_dir: Path):
         await grafana.delete_folder("l1")
 
 
+async def test_walk_backup_top_level(grafana: GrafanaClient, backup_dir: Path):
+    backup = GrafanaBackup(grafana, backup_dir)
+
+    # Create test dashboards
+    dashboard1 = DashboardData(uid="dash1", title="Dashboard 1")
+
+    await grafana.update_dashboard(dashboard1)
+
+    try:
+        # Backup everything first
+        await backup.backup_recursive()
+
+        # Test walk_backup
+        walk_result = list(backup.walk_backup())
+
+        # Convert to comparable format
+        simplified = [
+            (
+                uid,
+                sorted([f.uid for f in folders]),
+                sorted([d.dashboard.uid for d in dashboards]),
+            )
+            for uid, folders, dashboards in walk_result
+        ]
+
+        expected = [
+            ("general", [], ["dash1"]),
+        ]
+
+        assert simplified == expected
+
+    finally:
+        await grafana.delete_dashboard("dash1")
+
+
 async def test_backup_recursive(grafana: GrafanaClient, backup_dir: Path):
     backup = GrafanaBackup(grafana, backup_dir)
 
