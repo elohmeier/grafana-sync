@@ -64,5 +64,8 @@ select = [
   "UP",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["EM", "TRY"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
