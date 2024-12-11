@@ -33,7 +33,7 @@ class GrafanaSync:
         """Sync a single folder from source to destination Grafana instance."""
         src_folder = await self.src_grafana.get_folder(folder_uid)
         title = src_folder.title
-        parent_uid = src_folder.parent_uid or FOLDER_GENERAL
+        parent_uid = src_folder.parent_uid or self.dst_parent_uid or FOLDER_GENERAL
 
         # Check if folder already exists
         try:
@@ -91,14 +91,15 @@ class GrafanaSync:
                 await self.dst_grafana.move_folder(
                     folder_uid, parent_uid if parent_uid != FOLDER_GENERAL else None
                 )
-                logger.info(
-                    "Moved folder '%s' to new parent '%s'", folder_uid, parent_uid
-                )
             except Exception:
                 logger.exception(
                     "Failed to move folder '%s' to new parent '%s'",
                     folder_uid,
                     parent_uid,
+                )
+            else:
+                logger.info(
+                    "Moved folder '%s' to new parent '%s'", folder_uid, parent_uid
                 )
 
         self.folder_relocation_queue.clear()
@@ -157,17 +158,27 @@ class GrafanaSync:
 
             src_data = src_dashboard.dashboard
 
+            if folder_uid == FOLDER_GENERAL:
+                target_folder = (
+                    self.dst_parent_uid
+                    if self.dst_parent_uid != FOLDER_GENERAL
+                    else None
+                )
+            else:
+                target_folder = folder_uid
+
             # Check if dashboard exists in destination
             try:
                 dst_dashboard = await self.dst_grafana.get_dashboard(dashboard_uid)
-                dst_data = dst_dashboard.dashboard
-
+            except Exception:
+                # Dashboard doesn't exist in destination
+                dst_dashboard = None
+            else:
                 # Compare dashboards after cleaning
                 if self._clean_dashboard_for_comparison(
                     src_data
-                ) == self._clean_dashboard_for_comparison(dst_data) and (
-                    src_dashboard.meta.folder_uid == dst_dashboard.meta.folder_uid
-                    or not relocate
+                ) == self._clean_dashboard_for_comparison(dst_dashboard.dashboard) and (
+                    target_folder == dst_dashboard.meta.folder_uid or not relocate
                 ):
                     logger.info(
                         "Dashboard '%s' (uid: %s) is identical, skipping update",
@@ -175,28 +186,9 @@ class GrafanaSync:
                         dashboard_uid,
                     )
                     return True
-            except Exception:
-                # Dashboard doesn't exist in destination
-                pass
 
-            # Import dashboard to destination
-            if relocate:
-                if folder_uid == FOLDER_GENERAL:
-                    # For root-level dashboards, use dst_parent_uid if specified
-                    target_folder = self.dst_parent_uid if self.dst_parent_uid != FOLDER_GENERAL else None
-                else:
-                    target_folder = folder_uid
-            else:
-                # Keep existing folder if not relocating
-                try:
-                    dst_dashboard = await self.dst_grafana.get_dashboard(dashboard_uid)
-                    target_folder = dst_dashboard.meta.folder_uid
-                except Exception:
-                    # Dashboard doesn't exist yet, use source folder
-                    if folder_uid == FOLDER_GENERAL:
-                        target_folder = self.dst_parent_uid if self.dst_parent_uid != FOLDER_GENERAL else None
-                    else:
-                        target_folder = folder_uid
+            if dst_dashboard is not None and not relocate:
+                target_folder = dst_dashboard.meta.folder_uid
 
             await self.dst_grafana.update_dashboard(
                 src_data,

@@ -398,6 +398,85 @@ async def test_sync_with_pruning_and_destination_parent(
     assert dst_folder.parent_uid == "dst_parent"
 
 
+async def test_move_folders_with_destination_parent(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    """Test that folders are correctly moved when a destination parent is specified."""
+    # Create source structure with nested folders
+    await grafana.create_folder(title="Parent", uid="parent")
+    await grafana.create_folder(title="Child 1", uid="child1", parent_uid="parent")
+    await grafana.create_folder(title="Child 2", uid="child2")  # At root level
+    await grafana.create_folder(
+        title="Grandchild", uid="grandchild", parent_uid="child1"
+    )
+
+    # Create destination parent and initial structure (with different hierarchy)
+    await grafana_dst.create_folder(title="Destination Parent", uid="dst_parent")
+    await grafana_dst.create_folder(
+        title="Parent", uid="parent", parent_uid="dst_parent"
+    )
+    await grafana_dst.create_folder(title="Child 1", uid="child1")  # At root initially
+    await grafana_dst.create_folder(title="Child 2", uid="child2")  # At root
+    await grafana_dst.create_folder(
+        title="Grandchild", uid="grandchild", parent_uid="child2"
+    )  # Wrong parent
+
+    # Sync with destination parent
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        dst_parent_uid="dst_parent",
+    )
+
+    # Verify final folder structure
+    dst_parent = await grafana_dst.get_folder("parent")
+    assert dst_parent.parent_uid == "dst_parent"
+
+    dst_child1 = await grafana_dst.get_folder("child1")
+    assert dst_child1.parent_uid == "parent"
+
+    dst_child2 = await grafana_dst.get_folder("child2")
+    assert dst_child2.parent_uid == "dst_parent"  # Should be under dst_parent
+
+    dst_grandchild = await grafana_dst.get_folder("grandchild")
+    assert dst_grandchild.parent_uid == "child1"  # Should match source hierarchy
+
+
+async def test_sync_existing_general_dashboard_to_destination_parent(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    """Test that an existing dashboard in general folder is moved when dst_parent_uid is set."""
+    # Create a dashboard at root level in both source and destination
+    dashboard = DashboardData(uid="dash1", title="Root Dashboard")
+    await grafana.update_dashboard(dashboard)  # No folder_uid = root level
+    await grafana_dst.update_dashboard(dashboard)  # Also at root level
+
+    # Verify initial state - dashboard exists at root in both instances
+    src_dash = await grafana.get_dashboard("dash1")
+    assert src_dash.meta.folder_uid == ""
+    dst_dash = await grafana_dst.get_dashboard("dash1")
+    assert dst_dash.meta.folder_uid == ""
+
+    # Create destination parent folder
+    await grafana_dst.create_folder(title="Destination Parent", uid="dst_parent")
+
+    # Sync with dst_parent_uid
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        dst_parent_uid="dst_parent",
+    )
+
+    # Verify dashboard was moved to destination parent folder
+    dst_dash_after = await grafana_dst.get_dashboard("dash1")
+    assert dst_dash_after.meta.folder_uid == "dst_parent"
+    assert dst_dash_after.dashboard.title == "Root Dashboard"
+
+    # Verify source dashboard remains at root
+    src_dash_after = await grafana.get_dashboard("dash1")
+    assert src_dash_after.meta.folder_uid == ""
+
+
 async def test_sync_with_pruning(grafana: GrafanaClient, grafana_dst: GrafanaClient):
     # Create folders in source and destination
     await grafana.create_folder(title="Folder 1", uid="folder1")
