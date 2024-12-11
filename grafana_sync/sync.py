@@ -153,9 +153,11 @@ class GrafanaSync:
                 dst_data = dst_dashboard.dashboard
 
                 # Compare dashboards after cleaning
-                if self._clean_dashboard_for_comparison(
-                    src_data
-                ) == self._clean_dashboard_for_comparison(dst_data):
+                if (
+                    self._clean_dashboard_for_comparison(src_data)
+                    == self._clean_dashboard_for_comparison(dst_data)
+                    and src_dashboard.meta.folder_uid == dst_dashboard.meta.folder_uid
+                ):
                     logger.info(
                         "Dashboard '%s' (uid: %s) is identical, skipping update",
                         src_data.title,
