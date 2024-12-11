@@ -456,3 +456,21 @@ class GrafanaClient:
         dashboards = (await self.search_dashboards()).root
         if len(dashboards) > 0:
             raise ExistingDashboardsError(len(dashboards))
+
+    async def delete_all_folders_and_dashboards(self) -> None:
+        """Delete all dashboards and folders in the Grafana instance.
+
+        Dashboards are deleted first, then folders, since folders cannot be deleted
+        while containing dashboards.
+        """
+        # First delete all dashboards
+        dashboards = (await self.search_dashboards()).root
+        for dashboard in dashboards:
+            logger.debug("Deleting dashboard %s", dashboard.uid)
+            await self.delete_dashboard(dashboard.uid)
+
+        # Then delete all folders
+        folders = (await self.get_folders()).root
+        for folder in folders:
+            logger.debug("Deleting folder %s", folder.uid)
+            await self.delete_folder(folder.uid)

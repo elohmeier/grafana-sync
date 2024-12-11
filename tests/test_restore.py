@@ -1,4 +1,3 @@
-import contextlib
 import tempfile
 from pathlib import Path
 
@@ -32,17 +31,13 @@ async def test_restore_folder(grafana: GrafanaClient, backup_dir: Path):
     # Delete the original folder
     await grafana.delete_folder(folder_uid)
 
-    try:
-        # Restore the folder
-        await restore.restore_folder(folder_uid)
+    # Restore the folder
+    await restore.restore_folder(folder_uid)
 
-        # Verify restored folder
-        folder = await grafana.get_folder(folder_uid)
-        assert folder.uid == folder_uid
-        assert folder.title == folder_title
-
-    finally:
-        await grafana.delete_folder(folder_uid)
+    # Verify restored folder
+    folder = await grafana.get_folder(folder_uid)
+    assert folder.uid == folder_uid
+    assert folder.title == folder_title
 
 
 async def test_restore_dashboard(grafana: GrafanaClient, backup_dir: Path):
@@ -60,18 +55,13 @@ async def test_restore_dashboard(grafana: GrafanaClient, backup_dir: Path):
     # Delete the original dashboard
     await grafana.delete_dashboard("test-restore-dashboard")
 
-    try:
-        # Restore the dashboard
-        await restore.restore_dashboard("test-restore-dashboard")
+    # Restore the dashboard
+    await restore.restore_dashboard("test-restore-dashboard")
 
-        # Verify restored dashboard
-        restored = await grafana.get_dashboard("test-restore-dashboard")
-        assert restored.dashboard.uid == "test-restore-dashboard"
-        assert restored.dashboard.title == "Test Restore Dashboard"
-
-    finally:
-        with contextlib.suppress(Exception):
-            await grafana.delete_dashboard("test-restore-dashboard")
+    # Verify restored dashboard
+    restored = await grafana.get_dashboard("test-restore-dashboard")
+    assert restored.dashboard.uid == "test-restore-dashboard"
+    assert restored.dashboard.title == "Test Restore Dashboard"
 
 
 async def test_restore_recursive(grafana: GrafanaClient, backup_dir: Path):
@@ -87,31 +77,25 @@ async def test_restore_recursive(grafana: GrafanaClient, backup_dir: Path):
     )
     await grafana.update_dashboard(dashboard, folder_uid=folder_uid)
 
-    try:
-        # Backup everything
-        await backup.backup_recursive()
+    # Backup everything
+    await backup.backup_recursive()
 
-        # Delete everything
-        await grafana.delete_dashboard("test-restore-dash-recursive")
-        await grafana.delete_folder(folder_uid)
+    # Delete everything
+    await grafana.delete_dashboard("test-restore-dash-recursive")
+    await grafana.delete_folder(folder_uid)
 
-        # Restore everything
-        await restore.restore_recursive()
+    # Restore everything
+    await restore.restore_recursive()
 
-        # Verify folder was restored
-        folder = await grafana.get_folder(folder_uid)
-        assert folder.uid == folder_uid
-        assert folder.title == "Test Restore Recursive"
+    # Verify folder was restored
+    folder = await grafana.get_folder(folder_uid)
+    assert folder.uid == folder_uid
+    assert folder.title == "Test Restore Recursive"
 
-        # Verify dashboard was restored
-        dashboard = await grafana.get_dashboard("test-restore-dash-recursive")
-        assert dashboard.dashboard.uid == "test-restore-dash-recursive"
-        assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"
-
-    finally:
-        with contextlib.suppress(Exception):
-            await grafana.delete_dashboard("test-restore-dash-recursive")
-        await grafana.delete_folder(folder_uid)
+    # Verify dashboard was restored
+    dashboard = await grafana.get_dashboard("test-restore-dash-recursive")
+    assert dashboard.dashboard.uid == "test-restore-dash-recursive"
+    assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"
 
 
 async def test_restore_recursive_top_level_dashboard(
@@ -126,21 +110,16 @@ async def test_restore_recursive_top_level_dashboard(
     )
     await grafana.update_dashboard(dashboard)
 
-    try:
-        # Backup everything
-        await backup.backup_recursive()
+    # Backup everything
+    await backup.backup_recursive()
 
-        # Delete everything
-        await grafana.delete_dashboard("test-restore-dash-recursive")
+    # Delete everything
+    await grafana.delete_dashboard("test-restore-dash-recursive")
 
-        # Restore everything
-        await restore.restore_recursive()
+    # Restore everything
+    await restore.restore_recursive()
 
-        # Verify dashboard was restored
-        dashboard = await grafana.get_dashboard("test-restore-dash-recursive")
-        assert dashboard.dashboard.uid == "test-restore-dash-recursive"
-        assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"
-
-    finally:
-        with contextlib.suppress(Exception):
-            await grafana.delete_dashboard("test-restore-dash-recursive")
+    # Verify dashboard was restored
+    dashboard = await grafana.get_dashboard("test-restore-dash-recursive")
+    assert dashboard.dashboard.uid == "test-restore-dash-recursive"
+    assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"

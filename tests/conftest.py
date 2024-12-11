@@ -26,9 +26,13 @@ async def grafana(docker_ip, docker_services):
         )
 
     async with GrafanaClient(url, username="admin", password="admin") as client:
-        await client.check_pristine()
-        yield client
-        await client.check_pristine()
+        await client.check_pristine()  # abort if there is any data in the instance
+
+        try:
+            yield client
+        finally:
+            await client.delete_all_folders_and_dashboards()  # cleanup after test
+            await client.check_pristine()  # check if deletion succeeded
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -53,6 +57,10 @@ async def grafana_dst(docker_ip, docker_services):
         )
 
     async with GrafanaClient(url, username="admin", password="admin") as client:
-        await client.check_pristine()
-        yield client
-        await client.check_pristine()
+        await client.check_pristine()  # abort if there is any data in the instance
+
+        try:
+            yield client
+        finally:
+            await client.delete_all_folders_and_dashboards()  # cleanup after test
+            await client.check_pristine()  # check if deletion succeeded
