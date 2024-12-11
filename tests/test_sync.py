@@ -170,6 +170,45 @@ async def test_sync_selected_folder(grafana: GrafanaClient, grafana_dst: Grafana
     await grafana_dst.check_pristine()
 
 
+async def test_sync_dashboard_no_relocation(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    # Create folders in source and destination
+    await grafana.create_folder(title="Folder 1", uid="folder1")
+    await grafana.create_folder(title="Folder 2", uid="folder2")
+    await grafana_dst.create_folder(title="Folder 1", uid="folder1")
+    await grafana_dst.create_folder(title="Folder 2", uid="folder2")
+
+    # Create dashboard in Folder 1
+    dashboard = DashboardData(uid="dash1", title="Dashboard 1")
+    await grafana.update_dashboard(dashboard, folder_uid="folder1")
+    await grafana_dst.update_dashboard(dashboard, folder_uid="folder1")
+
+    # Move dashboard to Folder 2 in source
+    dashboard = DashboardData(uid="dash1", title="Dashboard 1")
+    await grafana.update_dashboard(dashboard, folder_uid="folder2")
+
+    # Verify dashboard was moved in source
+    src_db = await grafana.get_dashboard("dash1")
+    assert src_db.meta.folder_uid == "folder2"
+
+    # Sync with relocate_dashboards=False should not move the dashboard in destination
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        relocate_dashboards=False,
+    )
+
+    # Get version before sync
+    dst_db_before = await grafana_dst.get_dashboard("dash1")
+    version_before = dst_db_before.dashboard.version
+
+    # Verify dashboard was NOT moved in destination and version didn't change
+    dst_db_after = await grafana_dst.get_dashboard("dash1")
+    assert dst_db_after.meta.folder_uid == "folder1"
+    assert dst_db_after.dashboard.version == version_before  # Version should not increase
+
+
 async def test_sync_with_pruning(grafana: GrafanaClient, grafana_dst: GrafanaClient):
     # Create folders in source and destination
     await grafana.create_folder(title="Folder 1", uid="folder1")

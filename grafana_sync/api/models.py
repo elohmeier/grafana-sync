@@ -57,6 +57,7 @@ class SearchDashboardsResponse(RootModel):
 class DashboardData(BaseModel):
     uid: str
     title: str
+    version: int | None = None
 
     model_config = ConfigDict(extra="allow")
 

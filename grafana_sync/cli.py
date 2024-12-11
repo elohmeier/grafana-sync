@@ -254,6 +254,11 @@ async def list_folders(
     default=True,
     help="Move folders to match source folder structure",
 )
+@click.option(
+    "--relocate-dashboards/--no-relocate-dashboards",
+    default=True,
+    help="Move dashboards to match source folder structure",
+)
 @click.pass_context
 async def sync_folders(
     ctx: click.Context,
@@ -266,6 +271,7 @@ async def sync_folders(
     include_dashboards: bool,
     prune: bool,
     relocate_folders: bool,
+    relocate_dashboards: bool,
 ) -> None:
     """Sync folders from source to destination Grafana instance."""
     src_grafana = ctx.ensure_object(GrafanaClient)
@@ -280,6 +286,7 @@ async def sync_folders(
             include_dashboards=include_dashboards,
             prune=prune,
             relocate_folders=relocate_folders,
+            relocate_dashboards=relocate_dashboards,
         )
 
 

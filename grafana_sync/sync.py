@@ -133,6 +133,7 @@ class GrafanaSync:
         self,
         dashboard_uid: str,
         folder_uid: str | None = None,
+        relocate=True,
     ) -> bool:
         """Sync a single dashboard from source to destination Grafana instance.
 
@@ -153,10 +154,11 @@ class GrafanaSync:
                 dst_data = dst_dashboard.dashboard
 
                 # Compare dashboards after cleaning
-                if (
-                    self._clean_dashboard_for_comparison(src_data)
-                    == self._clean_dashboard_for_comparison(dst_data)
-                    and src_dashboard.meta.folder_uid == dst_dashboard.meta.folder_uid
+                if self._clean_dashboard_for_comparison(
+                    src_data
+                ) == self._clean_dashboard_for_comparison(dst_data) and (
+                    src_dashboard.meta.folder_uid == dst_dashboard.meta.folder_uid
+                    or not relocate
                 ):
                     logger.info(
                         "Dashboard '%s' (uid: %s) is identical, skipping update",
@@ -169,9 +171,20 @@ class GrafanaSync:
                 pass
 
             # Import dashboard to destination
+            if relocate:
+                target_folder = folder_uid if folder_uid != FOLDER_GENERAL else None
+            else:
+                # Keep existing folder if not relocating
+                try:
+                    dst_dashboard = await self.dst_grafana.get_dashboard(dashboard_uid)
+                    target_folder = dst_dashboard.meta.folder_uid
+                except Exception:
+                    # Dashboard doesn't exist yet, use source folder
+                    target_folder = folder_uid if folder_uid != FOLDER_GENERAL else None
+
             await self.dst_grafana.update_dashboard(
                 src_data,
-                folder_uid=folder_uid if folder_uid != FOLDER_GENERAL else None,
+                folder_uid=target_folder,
             )
         except Exception:
             logger.exception("Failed to sync dashboard %s", dashboard_uid)
@@ -194,6 +207,7 @@ async def sync(
     include_dashboards: bool = True,
     prune: bool = False,
     relocate_folders: bool = True,
+    relocate_dashboards: bool = True,
 ):
     syncer = GrafanaSync(src_grafana, dst_grafana)
 
@@ -222,7 +236,9 @@ async def sync(
         if include_dashboards:
             for dashboard in dashboards.root:
                 dashboard_uid = dashboard.uid
-                if await syncer.sync_dashboard(dashboard_uid, root_uid):
+                if await syncer.sync_dashboard(
+                    dashboard_uid, root_uid, relocate=relocate_dashboards
+                ):
                     src_dashboard_uids.add(dashboard_uid)
 
     if relocate_folders:
