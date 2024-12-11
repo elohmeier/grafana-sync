@@ -28,6 +28,15 @@ class ExistingDashboardsError(GrafanaNotPristineError):
         super().__init__(message)
 
 
+class DestinationParentNotFoundError(Exception):
+    """Raised when the specified destination parent folder does not exist."""
+
+    def __init__(self, parent_uid: str):
+        self.parent_uid = parent_uid
+        message = f"Destination parent folder with UID '{parent_uid}' does not exist"
+        super().__init__(message)
+
+
 class GrafanaRestoreError(Exception):
     """Base exception for restore operations."""
 

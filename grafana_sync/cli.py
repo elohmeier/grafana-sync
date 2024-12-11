@@ -259,6 +259,10 @@ async def list_folders(
     default=True,
     help="Move dashboards to match source folder structure",
 )
+@click.option(
+    "--dst-parent-uid",
+    help="Optional destination parent folder UID to sync everything under",
+)
 @click.pass_context
 async def sync_folders(
     ctx: click.Context,
@@ -272,6 +276,7 @@ async def sync_folders(
     prune: bool,
     relocate_folders: bool,
     relocate_dashboards: bool,
+    dst_parent_uid: str | None,
 ) -> None:
     """Sync folders from source to destination Grafana instance."""
     src_grafana = ctx.ensure_object(GrafanaClient)
@@ -287,6 +292,7 @@ async def sync_folders(
             prune=prune,
             relocate_folders=relocate_folders,
             relocate_dashboards=relocate_dashboards,
+            dst_parent_uid=dst_parent_uid,
         )
 
 

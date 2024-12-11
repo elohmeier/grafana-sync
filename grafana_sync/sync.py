@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from grafana_sync.api.client import FOLDER_GENERAL
+from grafana_sync.exceptions import DestinationParentNotFoundError
 
 if TYPE_CHECKING:
     from grafana_sync.api.client import GrafanaClient
@@ -17,10 +18,12 @@ class GrafanaSync:
         self,
         src_grafana: "GrafanaClient",
         dst_grafana: "GrafanaClient",
+        dst_parent_uid: str | None = None,
     ) -> None:
         self.src_grafana = src_grafana
         self.dst_grafana = dst_grafana
         self.folder_relocation_queue: dict[str, str] = {}
+        self.dst_parent_uid = dst_parent_uid
 
     async def sync_folder(
         self,
@@ -39,8 +42,14 @@ class GrafanaSync:
             # Folder doesn't exist, create it
             logger.info("Creating folder '%s' in destination", title)
             try:
+                # Handle dst_parent_uid for top-level folders
                 if parent_uid == FOLDER_GENERAL:
-                    dst_parent_uid = None
+                    if self.dst_parent_uid == FOLDER_GENERAL:
+                        dst_parent_uid = None  # Explicitly place at root
+                    elif self.dst_parent_uid is not None:
+                        dst_parent_uid = self.dst_parent_uid
+                    else:
+                        dst_parent_uid = None
                 else:
                     # Check if parent_uid is available in dst
                     try:
@@ -208,8 +217,16 @@ async def sync(
     prune: bool = False,
     relocate_folders: bool = True,
     relocate_dashboards: bool = True,
+    dst_parent_uid: str | None = None,
 ):
-    syncer = GrafanaSync(src_grafana, dst_grafana)
+    # Verify destination parent exists if specified
+    if dst_parent_uid is not None and dst_parent_uid != FOLDER_GENERAL:
+        try:
+            await dst_grafana.get_folder(dst_parent_uid)
+        except Exception as e:
+            raise DestinationParentNotFoundError(dst_parent_uid) from e
+
+    syncer = GrafanaSync(src_grafana, dst_grafana, dst_parent_uid)
 
     # Track source dashboards if pruning is enabled
     src_dashboard_uids = set()
