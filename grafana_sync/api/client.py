@@ -242,9 +242,7 @@ class GrafanaClient:
         self._handle_error(response)
         return UpdateFolderResponse.model_validate_json(response.content)
 
-    async def move_folder(
-        self, uid: str, new_parent_uid: str | None = None
-    ) -> UpdateFolderResponse:
+    async def move_folder(self, uid: str, new_parent_uid: str | None = None) -> None:
         """Move a folder to a new parent folder.
 
         Args:
@@ -257,16 +255,11 @@ class GrafanaClient:
         Raises:
             GrafanaApiError: If the request fails
         """
-        # Get current folder details to preserve title
-        current = await self.get_folder(uid)
-
         # Update folder with new parent
-        return await self.update_folder(
-            uid=uid,
-            title=current.title,
-            parent_uid=new_parent_uid,
-            overwrite=True,
+        response = await self.client.post(
+            f"/api/folders/{uid}/move", json={"parentUid": new_parent_uid}
         )
+        self._handle_error(response)
 
     async def search_dashboards(
         self,
