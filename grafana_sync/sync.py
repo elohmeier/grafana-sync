@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING
 
-from grafana_sync.api.client import FOLDER_GENERAL
+from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
 from grafana_sync.exceptions import DestinationParentNotFoundError
 
 if TYPE_CHECKING:
@@ -246,6 +246,9 @@ async def sync(
         folder_uid, recursive, include_dashboards=include_dashboards
     ):
         for folder in folders.root:
+            if folder == FOLDER_SHAREDWITHME:
+                continue  # skip unsyncable folder
+
             await syncer.sync_folder(folder.uid, can_move=True)
 
         # Sync dashboards if requested
