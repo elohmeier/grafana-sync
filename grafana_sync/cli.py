@@ -249,6 +249,11 @@ async def list_folders(
     is_flag=True,
     help="Remove dashboards in destination that don't exist in source",
 )
+@click.option(
+    "--relocate-folders/--no-relocate-folders",
+    default=True,
+    help="Move folders to match source folder structure",
+)
 @click.pass_context
 async def sync_folders(
     ctx: click.Context,
@@ -260,6 +265,7 @@ async def sync_folders(
     recursive: bool,
     include_dashboards: bool,
     prune: bool,
+    relocate_folders: bool,
 ) -> None:
     """Sync folders from source to destination Grafana instance."""
     src_grafana = ctx.ensure_object(GrafanaClient)
@@ -273,6 +279,7 @@ async def sync_folders(
             recursive=recursive,
             include_dashboards=include_dashboards,
             prune=prune,
+            relocate_folders=relocate_folders,
         )
 
 

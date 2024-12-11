@@ -76,6 +76,41 @@ async def test_sync_folder_relocation(
     assert dst_child.parent_uid == "parent2"
 
 
+async def test_sync_folder_no_relocation(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    # Create parent folders
+    await grafana.create_folder(title="Parent 1", uid="parent1")
+    await grafana.create_folder(title="Parent 2", uid="parent2")
+
+    # Create child folder in Parent 1
+    await grafana.create_folder(title="Child", uid="child", parent_uid="parent1")
+
+    # Create same structure in destination, but with Child under Parent 1
+    await grafana_dst.create_folder(title="Parent 1", uid="parent1")
+    await grafana_dst.create_folder(title="Parent 2", uid="parent2")
+    await grafana_dst.create_folder(title="Child", uid="child", parent_uid="parent1")
+
+    # Move child folder to Parent 2 in source
+    await grafana.move_folder("child", "parent2")
+
+    # Verify folder was moved in source
+    src_child = await grafana.get_folder("child")
+    assert src_child.parent_uid == "parent2"
+
+    # Sync with relocate_folders=False should not move the folder in destination
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        recursive=True,
+        relocate_folders=False,
+    )
+
+    # Verify folder was NOT moved in destination
+    dst_child = await grafana_dst.get_folder("child")
+    assert dst_child.parent_uid == "parent1"
+
+
 async def test_sync_dashboard_relocation(
     grafana: GrafanaClient, grafana_dst: GrafanaClient
 ):

@@ -193,6 +193,7 @@ async def sync(
     recursive: bool = True,
     include_dashboards: bool = True,
     prune: bool = False,
+    relocate_folders: bool = True,
 ):
     syncer = GrafanaSync(src_grafana, dst_grafana)
 
@@ -224,7 +225,11 @@ async def sync(
                 if await syncer.sync_dashboard(dashboard_uid, root_uid):
                     src_dashboard_uids.add(dashboard_uid)
 
-    await syncer.move_folders_to_new_parents()
+    if relocate_folders:
+        logger.info("relocation folders to updated parents if needed")
+        await syncer.move_folders_to_new_parents()
+    else:
+        logger.info("skipping folder relocation (disabled)")
 
     # Prune dashboards that don't exist in source
     if include_dashboards and prune:
