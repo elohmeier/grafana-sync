@@ -36,7 +36,8 @@ class GrafanaRestore:
         folder_file = self.folders_path / f"{folder_uid}.json"
 
         if not folder_file.exists():
-            raise BackupNotFoundError(f"Folder backup {folder_file} not found")
+            msg = f"Folder backup {folder_file} not found"
+            raise BackupNotFoundError(msg)
 
         with folder_file.open() as f:
             folder_data = GetFolderResponse.model_validate_json(f.read())
@@ -55,7 +56,7 @@ class GrafanaRestore:
             await self.grafana.create_folder(
                 title=folder_data.title,
                 uid=folder_data.uid,
-                parent_uid=folder_data.parentUid,
+                parent_uid=folder_data.parent_uid,
             )
             logger.info("Created folder '%s' from %s", folder_data.title, folder_file)
 
@@ -64,13 +65,14 @@ class GrafanaRestore:
         dashboard_file = self.dashboards_path / f"{dashboard_uid}.json"
 
         if not dashboard_file.exists():
-            raise BackupNotFoundError(f"Dashboard backup {dashboard_file} not found")
+            msg = f"Dashboard backup {dashboard_file} not found"
+            raise BackupNotFoundError(msg)
 
         with dashboard_file.open() as f:
             dashboard_data = GetDashboardResponse.model_validate_json(f.read())
 
         await self.grafana.update_dashboard(
-            dashboard_data.dashboard, dashboard_data.meta.folderUid
+            dashboard_data.dashboard, dashboard_data.meta.folder_uid
         )
         logger.info(
             "Restored dashboard '%s' from %s",
@@ -83,7 +85,8 @@ class GrafanaRestore:
         report_file = self.reports_path / f"{report_id}.json"
 
         if not report_file.exists():
-            raise BackupNotFoundError(f"Report backup {report_file} not found")
+            msg = f"Report backup {report_file} not found"
+            raise BackupNotFoundError(msg)
 
         with report_file.open() as f:
             report_data = GetReportResponse.model_validate_json(f.read())

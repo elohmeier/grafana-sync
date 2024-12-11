@@ -5,7 +5,7 @@ from grafana_sync.api.client import GrafanaClient
 
 
 @pytest_asyncio.fixture(scope="function")
-def grafana(docker_ip, docker_services):
+async def grafana(docker_ip, docker_services):
     """Ensure that HTTP service is up and responsive."""
     port = docker_services.port_for("grafana", 3000)
     url = f"http://{docker_ip}:{port}"
@@ -16,14 +16,43 @@ def grafana(docker_ip, docker_services):
             try:
                 response = httpx_client.get(f"{url}/login")
                 response.raise_for_status()
-                return True
             except httpx.ReadError:
                 return False
+            else:
+                return True
 
         docker_services.wait_until_responsive(
             timeout=30.0, pause=0.1, check=is_responsive
         )
 
-    gf_client = GrafanaClient(url, username="admin", password="admin")
+    async with GrafanaClient(url, username="admin", password="admin") as client:
+        await client.check_pristine()
+        yield client
+        await client.check_pristine()
 
-    return gf_client
+
+@pytest_asyncio.fixture(scope="function")
+async def grafana_dst(docker_ip, docker_services):
+    """Ensure that HTTP service is up and responsive."""
+    port = docker_services.port_for("grafana_dst", 3000)
+    url = f"http://{docker_ip}:{port}"
+
+    with httpx.Client() as httpx_client:
+
+        def is_responsive() -> bool:
+            try:
+                response = httpx_client.get(f"{url}/login")
+                response.raise_for_status()
+            except httpx.ReadError:
+                return False
+            else:
+                return True
+
+        docker_services.wait_until_responsive(
+            timeout=30.0, pause=0.1, check=is_responsive
+        )
+
+    async with GrafanaClient(url, username="admin", password="admin") as client:
+        await client.check_pristine()
+        yield client
+        await client.check_pristine()

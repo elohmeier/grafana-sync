@@ -1,5 +1,14 @@
 services:
   grafana:
     image: grafana/grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
     ports:
       - 3000:3000
+
+  grafana_dst:
+    image: grafana/grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    ports:
+      - 3001:3000

@@ -33,3 +33,36 @@ test = ["pytest", "pytest-docker", "pytest-asyncio"]
 [tool.pytest.ini_options]
 markers = ["docker"]
 asyncio_mode = "auto"
+
+[tool.ruff.lint]
+ignore = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D107",
+  "D417",
+  "E501",
+]
+select = [
+  "B",
+  "D",
+  "E",
+  "EM",
+  "F",
+  "I",
+  "N",
+  "PT",
+  "R",
+  "RUF",
+  "SIM",
+  "T",
+  "TCH",
+  "TRY",
+  "UP",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

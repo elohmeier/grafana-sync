@@ -20,7 +20,7 @@ def _to_dicts(items: GetFoldersResponse | SearchDashboardsResponse):
     return [
         {
             k: v
-            for k, v in item.model_dump().items()
+            for k, v in item.model_dump(by_alias=True).items()
             if k in ["uid", "title", "folderUid", "parentUid"] and v is not None
         }
         for item in items.root

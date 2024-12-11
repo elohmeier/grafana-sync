@@ -8,7 +8,7 @@ class CreateFolderResponse(BaseModel):
     title: str
     url: str
     version: int
-    parentUid: str | None = None
+    parent_uid: str | None = Field(alias="parentUid", default=None)
 
 
 class GetFoldersResponseItem(BaseModel):
@@ -16,7 +16,7 @@ class GetFoldersResponseItem(BaseModel):
 
     uid: str
     title: str
-    parentUid: str | None = None
+    parent_uid: str | None = Field(alias="parentUid", default=None)
 
 
 class GetFoldersResponse(RootModel):
@@ -31,7 +31,7 @@ class GetFolderResponse(BaseModel):
     uid: str
     title: str
     url: str
-    parentUid: str | None = None
+    parent_uid: str | None = Field(alias="parentUid", default=None)
 
 
 class SearchDashboardsResponseItem(BaseModel):
@@ -44,8 +44,8 @@ class SearchDashboardsResponseItem(BaseModel):
     type_: str = Field(alias="type")
     tags: list[str]
     slug: str
-    folderUid: str | None = None
-    folderTitle: str | None = None
+    folder_uid: str | None = Field(alias="folderUid", default=None)
+    folder_title: str | None = Field(alias="folderTitle", default=None)
 
 
 class SearchDashboardsResponse(RootModel):
@@ -63,7 +63,7 @@ class DashboardData(BaseModel):
 
 class UpdateDashboardRequest(BaseModel):
     dashboard: DashboardData
-    folderUid: str | None = None
+    folder_uid: str | None = Field(alias="folderUid", default=None)
     message: str | None = None
     overwrite: bool | None = None
 
@@ -80,7 +80,7 @@ class UpdateDashboardResponse(BaseModel):
 
 
 class DashboardMeta(BaseModel):
-    folderUid: str
+    folder_uid: str = Field(alias="folderUid")
 
     model_config = ConfigDict(extra="allow")
 
@@ -119,7 +119,7 @@ class UpdateFolderResponse(BaseModel):
     title: str
     url: str
     version: int
-    parentUid: str | None = None
+    parent_uid: str | None = Field(alias="parentUid", default=None)
 
 
 class GrafanaErrorResponse(BaseModel):

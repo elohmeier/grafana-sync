@@ -1,3 +1,4 @@
+import contextlib
 import tempfile
 from pathlib import Path
 
@@ -69,10 +70,8 @@ async def test_restore_dashboard(grafana: GrafanaClient, backup_dir: Path):
         assert restored.dashboard.title == "Test Restore Dashboard"
 
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await grafana.delete_dashboard("test-restore-dashboard")
-        except Exception:
-            pass
 
 
 async def test_restore_recursive(grafana: GrafanaClient, backup_dir: Path):
@@ -110,10 +109,8 @@ async def test_restore_recursive(grafana: GrafanaClient, backup_dir: Path):
         assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"
 
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await grafana.delete_dashboard("test-restore-dash-recursive")
-        except Exception:
-            pass
         await grafana.delete_folder(folder_uid)
 
 
@@ -145,7 +142,5 @@ async def test_restore_recursive_top_level_dashboard(
         assert dashboard.dashboard.title == "Test Restore Dashboard Recursive"
 
     finally:
-        try:
+        with contextlib.suppress(Exception):
             await grafana.delete_dashboard("test-restore-dash-recursive")
-        except Exception:
-            pass

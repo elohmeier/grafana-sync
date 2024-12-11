@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Mapping
+from typing import TYPE_CHECKING
 
 import asyncclick as click
 from rich import print as rprint
@@ -9,9 +9,11 @@ from rich.tree import Tree
 from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
 from grafana_sync.backup import GrafanaBackup
 from grafana_sync.restore import GrafanaRestore
-from grafana_sync.sync import GrafanaSync
+from grafana_sync.sync import sync
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from grafana_sync.api.models import (
         GetFolderResponse,
         GetFoldersResponseItem,
@@ -155,10 +157,7 @@ async def list_folders(
             Returns:
                 The created tree node for this folder
             """
-            if parent is None:
-                r_tree = Tree(self.label)
-            else:
-                r_tree = parent.add(self.label)
+            r_tree = Tree(self.label) if parent is None else parent.add(self.label)
 
             for c in self.children:
                 c.to_tree(r_tree)
@@ -172,9 +171,8 @@ async def list_folders(
                 return {
                     "type": "dash-folder",
                     "children": children_data,
-                } | self.data.model_dump()
-            else:
-                return children_data
+                } | self.data.model_dump(by_alias=True)
+            return children_data
 
     folder_nodes: Mapping[str | None, TreeFolderItem] = {}
 
@@ -268,43 +266,14 @@ async def sync_folders(
     async with GrafanaClient(
         dst_url, dst_api_key, dst_username, dst_password
     ) as dst_grafana:
-        syncer = GrafanaSync(src_grafana, dst_grafana)
-
-        # Track source dashboards if pruning is enabled
-        src_dashboard_uids = set()
-        dst_dashboard_uids = set()
-
-        if include_dashboards and prune:
-            # Get all dashboards in destination folders before we start syncing
-            dst_dashboard_uids = await syncer.get_folder_dashboards(
-                dst_grafana, folder_uid, recursive
-            )
-
-        # if a folder was requested sync it first
-        if folder_uid != FOLDER_GENERAL:
-            await syncer.sync_folder(folder_uid, can_move=False)
-
-        # Now walk and sync child folders and optionally dashboards
-        async for root_uid, folders, dashboards in src_grafana.walk(
-            folder_uid, recursive, include_dashboards=include_dashboards
-        ):
-            for folder in folders.root:
-                await syncer.sync_folder(folder.uid, can_move=True)
-
-            # Sync dashboards if requested
-            if include_dashboards:
-                for dashboard in dashboards.root:
-                    dashboard_uid = dashboard.uid
-                    if syncer.sync_dashboard(dashboard_uid, root_uid):
-                        src_dashboard_uids.add(dashboard_uid)
-
-        await syncer.move_folders_to_new_parents()
-
-        # Prune dashboards that don't exist in source
-        if include_dashboards and prune:
-            dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
-            for dashboard_uid in dashboards_to_delete:
-                await syncer.delete_dashboard(dashboard_uid)
+        await sync(
+            src_grafana=src_grafana,
+            dst_grafana=dst_grafana,
+            folder_uid=folder_uid,
+            recursive=recursive,
+            include_dashboards=include_dashboards,
+            prune=prune,
+        )
 
 
 @cli.command(name="backup")
@@ -416,6 +385,5 @@ async def restore_folders(
     elif dashboard_uid:
         await restore.restore_dashboard(dashboard_uid)
     else:
-        raise click.UsageError(
-            "Either --recursive, --folder-uid or --dashboard-uid must be specified"
-        )
+        msg = "Either --recursive, --folder-uid or --dashboard-uid must be specified"
+        raise click.UsageError(msg)

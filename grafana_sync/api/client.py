@@ -1,7 +1,8 @@
 import logging
 import os
 import ssl
-from typing import AsyncGenerator, Self
+from collections.abc import AsyncGenerator
+from typing import Self
 from urllib.parse import urlparse
 
 import certifi
@@ -67,9 +68,8 @@ class GrafanaClient:
         elif username and password:
             auth = (username, password)
         else:
-            raise ValueError(
-                "Either --api-key or both --username and --password must be provided (via parameters or URL)"
-            )
+            msg = "Either --api-key or both --username and --password must be provided (via parameters or URL)"
+            raise ValueError(msg)
 
         # Construct base URL
         base_url = f"{protocol}://{host}"
@@ -226,7 +226,8 @@ class GrafanaClient:
             ValueError: If version is not provided and overwrite is False
         """
         if not overwrite and version is None:
-            raise ValueError("version must be provided when overwrite=False")
+            msg = "version must be provided when overwrite=False"
+            raise ValueError(msg)
 
         data = {
             "title": title,
@@ -325,7 +326,8 @@ class GrafanaClient:
         )
 
         response = await self.client.post(
-            "/api/dashboards/db", json=payload.model_dump(exclude={"dashboard": {"id"}})
+            "/api/dashboards/db",
+            json=payload.model_dump(exclude={"dashboard": {"id"}}, by_alias=True),
         )
         self._handle_error(response)
         return UpdateDashboardResponse.model_validate_json(response.content)
@@ -400,7 +402,7 @@ class GrafanaClient:
             GrafanaApiError: If the request fails
         """
         response = await self.client.post(
-            "/api/reports", json=report.model_dump(exclude={"id"})
+            "/api/reports", json=report.model_dump(exclude={"id"}, by_alias=True)
         )
         self._handle_error(response)
         return CreateReportResponse.model_validate_json(response.content)

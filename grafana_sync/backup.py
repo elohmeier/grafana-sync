@@ -1,6 +1,7 @@
 import logging
+from collections.abc import Generator, Iterable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Generator, Iterable, Sequence
+from typing import TYPE_CHECKING
 
 from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
 from grafana_sync.api.models import GetDashboardResponse, GetFoldersResponseItem
@@ -39,7 +40,7 @@ class GrafanaBackup:
         folder_file = self.folders_path / f"{folder_uid}.json"
 
         with folder_file.open("w") as f:
-            f.write(folder_data.model_dump_json(indent=2))
+            f.write(folder_data.model_dump_json(indent=2, by_alias=True))
 
         logger.info("Backed up folder '%s' to %s", folder_data.title, folder_file)
 
@@ -53,7 +54,7 @@ class GrafanaBackup:
         dashboard_file = self.dashboards_path / f"{dashboard_uid}.json"
 
         with dashboard_file.open("w") as f:
-            f.write(dashboard.model_dump_json(indent=2))
+            f.write(dashboard.model_dump_json(indent=2, by_alias=True))
 
         logger.info(
             "Backed up dashboard '%s' to %s",
@@ -77,7 +78,7 @@ class GrafanaBackup:
                 with folder_file.open() as f:
                     folder_data = GetFoldersResponseItem.model_validate_json(f.read())
 
-                parent = folder_data.parentUid
+                parent = folder_data.parent_uid
                 if (parent_uid == FOLDER_GENERAL and parent is None) or (
                     parent_uid != FOLDER_GENERAL and parent == parent_uid
                 ):
@@ -90,9 +91,9 @@ class GrafanaBackup:
                 with dashboard_file.open() as f:
                     dashboard_data = GetDashboardResponse.model_validate_json(f.read())
                 if folder_uid == FOLDER_GENERAL:
-                    if dashboard_data.meta.folderUid == "":
+                    if dashboard_data.meta.folder_uid == "":
                         yield dashboard_data
-                elif dashboard_data.meta.folderUid == folder_uid:
+                elif dashboard_data.meta.folder_uid == folder_uid:
                     yield dashboard_data
 
         def walk_recursive(
@@ -119,7 +120,7 @@ class GrafanaBackup:
         report_file = self.reports_path / f"{report_id}.json"
 
         with report_file.open("w") as f:
-            f.write(report.model_dump_json(indent=2))
+            f.write(report.model_dump_json(indent=2, by_alias=True))
 
         logger.info("Backed up report '%s' to %s", report.name, report_file)
 
@@ -132,14 +133,14 @@ class GrafanaBackup:
         """Recursively backup folders, dashboards, and reports starting from a folder."""
         self._ensure_backup_dirs()
 
-        async for folder_uid, _, dashboards in self.grafana.walk(
+        async for wlk_folder_uid, _, dashboards in self.grafana.walk(
             folder_uid,
             recursive=True,
             include_dashboards=include_dashboards,
         ):
             # Backup folder
-            if folder_uid != FOLDER_GENERAL:
-                await self.backup_folder(folder_uid)
+            if wlk_folder_uid != FOLDER_GENERAL:
+                await self.backup_folder(wlk_folder_uid)
 
             # Backup dashboards
             if include_dashboards:

@@ -30,7 +30,7 @@ class GrafanaSync:
         """Sync a single folder from source to destination Grafana instance."""
         src_folder = await self.src_grafana.get_folder(folder_uid)
         title = src_folder.title
-        parent_uid = src_folder.parentUid or FOLDER_GENERAL
+        parent_uid = src_folder.parent_uid or FOLDER_GENERAL
 
         # Check if folder already exists
         try:
@@ -54,8 +54,8 @@ class GrafanaSync:
                     title=title, uid=folder_uid, parent_uid=dst_parent_uid
                 )
                 logger.info("Created folder '%s' (uid: %s)", title, folder_uid)
-            except Exception as e:
-                logger.error("Failed to create folder '%s': %s", title, e)
+            except Exception:
+                logger.exception("Failed to create folder '%s'", title)
         else:
             if existing_dst_folder.title != title:
                 logger.info("Updating folder title '%s' in destination", title)
@@ -65,13 +65,13 @@ class GrafanaSync:
                         title=title,
                         overwrite=True,
                     )
-                except Exception as e:
-                    logger.error("Failed to update folder '%s': %s", title, e)
+                except Exception:
+                    logger.exception("Failed to update folder '%s'", title)
 
             # check if the folder needs to be moved
             if (
                 can_move
-                and (existing_dst_folder.parentUid or FOLDER_GENERAL) != parent_uid
+                and (existing_dst_folder.parent_uid or FOLDER_GENERAL) != parent_uid
             ):
                 # since a parent might not exist yet, we enqueue the relocations
                 self.folder_relocation_queue[folder_uid] = parent_uid
@@ -85,12 +85,11 @@ class GrafanaSync:
                 logger.info(
                     "Moved folder '%s' to new parent '%s'", folder_uid, parent_uid
                 )
-            except Exception as e:
-                logger.error(
-                    "Failed to move folder '%s' to new parent '%s': %s",
+            except Exception:
+                logger.exception(
+                    "Failed to move folder '%s' to new parent '%s'",
                     folder_uid,
                     parent_uid,
-                    e,
                 )
 
         self.folder_relocation_queue.clear()
@@ -119,15 +118,16 @@ class GrafanaSync:
         """Delete a dashboard from destination Grafana instance."""
         try:
             await self.dst_grafana.delete_dashboard(dashboard_uid)
+        except Exception:
+            logger.exception("Failed to delete dashboard %s", dashboard_uid)
+            return False
+        else:
             logger.info("Deleted dashboard with uid: %s", dashboard_uid)
             return True
-        except Exception as e:
-            logger.error("Failed to delete dashboard %s: %s", dashboard_uid, e)
-            return False
 
     def _clean_dashboard_for_comparison(self, dashboard_data: "DashboardData") -> dict:
         """Remove dynamic fields from dashboard data for comparison."""
-        return dashboard_data.model_dump(exclude={"id", "version"})
+        return dashboard_data.model_dump(exclude={"id", "version"}, by_alias=True)
 
     async def sync_dashboard(
         self,
@@ -171,12 +171,61 @@ class GrafanaSync:
                 src_data,
                 folder_uid=folder_uid if folder_uid != FOLDER_GENERAL else None,
             )
+        except Exception:
+            logger.exception("Failed to sync dashboard %s", dashboard_uid)
+            return False
+        else:
             logger.info(
                 "Synced dashboard '%s' (uid: %s)",
                 src_data.title,
                 dashboard_uid,
             )
             return True
-        except Exception as e:
-            logger.error("Failed to sync dashboard %s: %s", dashboard_uid, e)
-            return False
+
+
+async def sync(
+    *,
+    src_grafana: "GrafanaClient",
+    dst_grafana: "GrafanaClient",
+    folder_uid: str = FOLDER_GENERAL,
+    recursive: bool = True,
+    include_dashboards: bool = True,
+    prune: bool = False,
+):
+    syncer = GrafanaSync(src_grafana, dst_grafana)
+
+    # Track source dashboards if pruning is enabled
+    src_dashboard_uids = set()
+    dst_dashboard_uids = set()
+
+    if include_dashboards and prune:
+        # Get all dashboards in destination folders before we start syncing
+        dst_dashboard_uids = await syncer.get_folder_dashboards(
+            dst_grafana, folder_uid, recursive
+        )
+
+    # if a folder was requested sync it first
+    if folder_uid != FOLDER_GENERAL:
+        await syncer.sync_folder(folder_uid, can_move=False)
+
+    # Now walk and sync child folders and optionally dashboards
+    async for root_uid, folders, dashboards in src_grafana.walk(
+        folder_uid, recursive, include_dashboards=include_dashboards
+    ):
+        for folder in folders.root:
+            await syncer.sync_folder(folder.uid, can_move=True)
+
+        # Sync dashboards if requested
+        if include_dashboards:
+            for dashboard in dashboards.root:
+                dashboard_uid = dashboard.uid
+                if await syncer.sync_dashboard(dashboard_uid, root_uid):
+                    src_dashboard_uids.add(dashboard_uid)
+
+    await syncer.move_folders_to_new_parents()
+
+    # Prune dashboards that don't exist in source
+    if include_dashboards and prune:
+        dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
+        for dashboard_uid in dashboards_to_delete:
+            await syncer.delete_dashboard(dashboard_uid)
