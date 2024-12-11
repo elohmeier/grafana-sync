@@ -2,7 +2,7 @@ import pytest
 
 from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
 from grafana_sync.api.models import DashboardData
-from grafana_sync.exceptions import DestinationParentNotFoundError
+from grafana_sync.exceptions import DestinationParentNotFoundError, GrafanaApiError
 from grafana_sync.sync import sync
 
 pytestmark = pytest.mark.docker
@@ -348,6 +348,54 @@ async def test_sync_root_dashboard_to_destination_parent(
     dst_dash = await grafana_dst.get_dashboard("dash1")
     assert dst_dash.meta.folder_uid == "dst_parent"
     assert dst_dash.dashboard.title == "Root Dashboard"
+
+
+async def test_sync_with_pruning_and_destination_parent(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    """Test that pruning works correctly when a destination parent is specified."""
+    # Create source structure
+    await grafana.create_folder(title="Source Folder", uid="src_folder")
+    dashboard1 = DashboardData(uid="dash1", title="Dashboard 1")
+    dashboard2 = DashboardData(uid="dash2", title="Dashboard 2")
+    await grafana.update_dashboard(dashboard1, folder_uid="src_folder")
+    await grafana.update_dashboard(dashboard2, folder_uid="src_folder")
+
+    # Create destination parent and structure
+    await grafana_dst.create_folder(title="Destination Parent", uid="dst_parent")
+    await grafana_dst.create_folder(
+        title="Source Folder", uid="src_folder", parent_uid="dst_parent"
+    )
+
+    # Create extra dashboard in destination that should be pruned
+    dashboard3 = DashboardData(uid="dash3", title="Dashboard 3")
+    await grafana_dst.update_dashboard(dashboard3, folder_uid="src_folder")
+
+    # Sync with pruning enabled and destination parent specified
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        folder_uid="src_folder",
+        prune=True,
+        dst_parent_uid="dst_parent",
+    )
+
+    # Verify dashboards 1 and 2 exist in destination under the correct folder
+    dst_db1 = await grafana_dst.get_dashboard("dash1")
+    assert dst_db1.dashboard.title == "Dashboard 1"
+    assert dst_db1.meta.folder_uid == "src_folder"
+
+    dst_db2 = await grafana_dst.get_dashboard("dash2")
+    assert dst_db2.dashboard.title == "Dashboard 2"
+    assert dst_db2.meta.folder_uid == "src_folder"
+
+    # Verify dashboard 3 was pruned
+    with pytest.raises(GrafanaApiError):
+        await grafana_dst.get_dashboard("dash3")
+
+    # Verify folder structure
+    dst_folder = await grafana_dst.get_folder("src_folder")
+    assert dst_folder.parent_uid == "dst_parent"
 
 
 async def test_sync_with_pruning(grafana: GrafanaClient, grafana_dst: GrafanaClient):
