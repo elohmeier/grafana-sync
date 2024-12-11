@@ -181,7 +181,11 @@ class GrafanaSync:
 
             # Import dashboard to destination
             if relocate:
-                target_folder = folder_uid if folder_uid != FOLDER_GENERAL else None
+                if folder_uid == FOLDER_GENERAL:
+                    # For root-level dashboards, use dst_parent_uid if specified
+                    target_folder = self.dst_parent_uid if self.dst_parent_uid != FOLDER_GENERAL else None
+                else:
+                    target_folder = folder_uid
             else:
                 # Keep existing folder if not relocating
                 try:
@@ -189,7 +193,10 @@ class GrafanaSync:
                     target_folder = dst_dashboard.meta.folder_uid
                 except Exception:
                     # Dashboard doesn't exist yet, use source folder
-                    target_folder = folder_uid if folder_uid != FOLDER_GENERAL else None
+                    if folder_uid == FOLDER_GENERAL:
+                        target_folder = self.dst_parent_uid if self.dst_parent_uid != FOLDER_GENERAL else None
+                    else:
+                        target_folder = folder_uid
 
             await self.dst_grafana.update_dashboard(
                 src_data,

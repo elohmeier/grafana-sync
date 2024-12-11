@@ -326,6 +326,30 @@ async def test_sync_to_nonexistent_parent(
     await grafana_dst.check_pristine()
 
 
+async def test_sync_root_dashboard_to_destination_parent(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    """Test that a dashboard at root level is moved to dst_parent_uid folder when specified."""
+    # Create a dashboard at root level in source
+    dashboard = DashboardData(uid="dash1", title="Root Dashboard")
+    await grafana.update_dashboard(dashboard)  # No folder_uid = root level
+
+    # Create destination parent folder
+    await grafana_dst.create_folder(title="Destination Parent", uid="dst_parent")
+
+    # Sync with dst_parent_uid
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        dst_parent_uid="dst_parent",
+    )
+
+    # Verify dashboard was moved to destination parent folder
+    dst_dash = await grafana_dst.get_dashboard("dash1")
+    assert dst_dash.meta.folder_uid == "dst_parent"
+    assert dst_dash.dashboard.title == "Root Dashboard"
+
+
 async def test_sync_with_pruning(grafana: GrafanaClient, grafana_dst: GrafanaClient):
     # Create folders in source and destination
     await grafana.create_folder(title="Folder 1", uid="folder1")
