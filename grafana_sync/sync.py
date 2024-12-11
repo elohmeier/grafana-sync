@@ -87,6 +87,9 @@ class GrafanaSync:
 
     async def move_folders_to_new_parents(self) -> None:
         for folder_uid, parent_uid in self.folder_relocation_queue.items():
+            if folder_uid in [FOLDER_GENERAL, FOLDER_SHAREDWITHME]:
+                continue  # skip system folders
+
             try:
                 await self.dst_grafana.move_folder(
                     folder_uid, parent_uid if parent_uid != FOLDER_GENERAL else None
