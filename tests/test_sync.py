@@ -5,6 +5,8 @@ from grafana_sync.api.models import DashboardData
 from grafana_sync.exceptions import DestinationParentNotFoundError
 from grafana_sync.sync import sync
 
+pytestmark = pytest.mark.docker
+
 
 async def test_sync_dashboard(grafana: GrafanaClient, grafana_dst: GrafanaClient):
     dashboard1 = DashboardData(uid="dash1", title="Dashboard 1")
