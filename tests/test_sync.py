@@ -13,18 +13,13 @@ async def test_sync_dashboard(grafana: GrafanaClient, grafana_dst: GrafanaClient
 
     await grafana.update_dashboard(dashboard1)
 
-    try:
-        await sync(
-            src_grafana=grafana,
-            dst_grafana=grafana_dst,
-        )
-    finally:
-        await grafana.delete_dashboard("dash1")
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+    )
 
     dst_db = await grafana_dst.get_dashboard("dash1")
     assert dst_db.dashboard.title == "Dashboard 1"
-
-    await grafana_dst.delete_dashboard("dash1")
 
 
 async def test_sync_folder(grafana: GrafanaClient, grafana_dst: GrafanaClient):
