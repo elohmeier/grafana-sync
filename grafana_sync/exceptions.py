@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from grafana_sync.api.models import GrafanaErrorResponse
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from httpx import Response
@@ -56,6 +56,31 @@ class BackupNotFoundError(GrafanaRestoreError):
     """Raised when a backup file is not found."""
 
     pass
+
+
+class UnsupportedDatasourceTypeError(Exception):
+    """Raised when attempting to map an unsupported datasource type."""
+
+    def __init__(self, datasource_type: str):
+        self.datasource_type = datasource_type
+        message = f"Unsupported datasource type: {datasource_type}"
+        super().__init__(message)
+
+
+class UnmappedDatasourceError(Exception):
+    """Raised when a datasource UID cannot be mapped in strict mode."""
+
+    def __init__(self, datasource_uid: str):
+        self.datasource_uid = datasource_uid
+        message = f"Could not map datasource with UID: {datasource_uid}"
+        super().__init__(message)
+
+
+class GrafanaErrorResponse(BaseModel):
+    """Model for Grafana API error responses."""
+
+    message: str
+    status: str | None = None
 
 
 class GrafanaApiError(Exception):

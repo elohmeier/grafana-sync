@@ -1,6 +1,9 @@
+from collections.abc import Mapping
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
-from grafana_sync.dashboards.models import DashboardData
+from grafana_sync.dashboards.models import DashboardData, DSRef
 
 
 class CreateFolderResponse(BaseModel):
@@ -42,7 +45,17 @@ class DatasourceDefinition(BaseModel):
     type_: str = Field(alias="type")
     access: str
 
+    # datasource specific optional fields
+    url: str | None = None
+    user: str | None = None
+    database: str | None = None
+    json_data: Mapping[str, Any] | None = Field(alias="jsonData", default=None)
+
     model_config = ConfigDict(extra="allow")
+
+    @property
+    def ref(self) -> DSRef:
+        return DSRef(uid=self.uid, name=self.name)
 
 
 class GetDatasourcesResponse(RootModel):
@@ -136,10 +149,3 @@ class UpdateFolderResponse(BaseModel):
     url: str
     version: int
     parent_uid: str | None = Field(alias="parentUid", default=None)
-
-
-class GrafanaErrorResponse(BaseModel):
-    """Model for Grafana API error responses."""
-
-    message: str
-    status: str | None = None

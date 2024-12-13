@@ -2,6 +2,8 @@ from collections.abc import Generator, Mapping
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from grafana_sync.exceptions import UnmappedDatasourceError
+
 
 class DSRef(BaseModel):
     uid: str
@@ -18,8 +20,13 @@ class DataSource(BaseModel):
     def is_variable(self):
         return self.uid.startswith("${") and self.uid.endswith("}")
 
-    def update(self, ds_map: Mapping[str, DSRef]) -> bool:
-        if self.is_variable or self.uid not in ds_map:
+    def update(self, ds_map: Mapping[str, DSRef], strict=False) -> bool:
+        if self.is_variable:
+            return False
+
+        if self.uid not in ds_map:
+            if strict:
+                raise UnmappedDatasourceError(self.uid)
             return False
 
         self.uid = ds_map[self.uid].uid
@@ -55,11 +62,11 @@ class Panel(BaseModel):
             for p in self.panels:
                 yield from p.all_datasources
 
-    def update_datasources(self, ds_map: Mapping[str, DSRef]) -> int:
+    def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
         ct = 0
 
         for ds in self.all_datasources:
-            if ds.update(ds_map):
+            if ds.update(ds_map, strict):
                 ct += 1
 
         return ct
@@ -69,7 +76,7 @@ class TemplatingItemCurrent(BaseModel):
     text: str | list[str]
     value: str | list[str]
 
-    def update_datasource(self, ds_map: Mapping[str, DSRef]) -> bool:
+    def update_datasource(self, ds_map: Mapping[str, DSRef], strict=False) -> bool:
         if not isinstance(self.text, str):
             return False
 
@@ -77,6 +84,8 @@ class TemplatingItemCurrent(BaseModel):
             return False
 
         if self.value not in ds_map:
+            if strict:
+                raise UnmappedDatasourceError(self.value)
             return False
 
         self.text = ds_map[self.value].name
@@ -109,7 +118,7 @@ class Templating(BaseModel):
             for t in self.list_:
                 yield from t.all_datasources
 
-    def update_datasources(self, ds_map: Mapping[str, DSRef]) -> int:
+    def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
         if self.list_ is None:
             return 0
 
@@ -119,7 +128,7 @@ class Templating(BaseModel):
             if t.type_ != "datasource" or t.current is None:
                 continue
 
-            if t.current.update_datasource(ds_map):
+            if t.current.update_datasource(ds_map, strict):
                 ct += 1
 
         return ct
@@ -152,14 +161,14 @@ class DashboardData(BaseModel):
     def variable_datasource_count(self) -> int:
         return len([ds for ds in self.all_datasources if ds.is_variable])
 
-    def update_datasources(self, ds_map: Mapping[str, DSRef]) -> int:
+    def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
         ct = 0
 
         if self.panels is not None:
             for p in self.panels:
-                ct += p.update_datasources(ds_map)
+                ct += p.update_datasources(ds_map, strict)
 
         if self.templating is not None:
-            ct += self.templating.update_datasources(ds_map)
+            ct += self.templating.update_datasources(ds_map, strict)
 
         return ct

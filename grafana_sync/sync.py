@@ -1,7 +1,10 @@
 import logging
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
+from grafana_sync.dashboards.models import DSRef
+from grafana_sync.datasource_mapper import map_datasources
 from grafana_sync.exceptions import DestinationParentNotFoundError
 
 if TYPE_CHECKING:
@@ -14,16 +17,22 @@ logger = logging.getLogger(__name__)
 class GrafanaSync:
     """Handles synchronization of folders and dashboards between Grafana instances."""
 
+    ds_map: Mapping[str, DSRef] | None
+
     def __init__(
         self,
         src_grafana: "GrafanaClient",
         dst_grafana: "GrafanaClient",
+        *,
         dst_parent_uid: str | None = None,
+        migrate_datasources: bool = False,
     ) -> None:
         self.src_grafana = src_grafana
         self.dst_grafana = dst_grafana
         self.folder_relocation_queue: dict[str, str] = {}
         self.dst_parent_uid = dst_parent_uid
+        self.migrate_datasources = migrate_datasources
+        self.ds_map = None
 
     async def sync_folder(
         self,
@@ -142,6 +151,19 @@ class GrafanaSync:
         """Remove dynamic fields from dashboard data for comparison."""
         return dashboard_data.model_dump(exclude={"id", "version"}, by_alias=True)
 
+    async def get_ds_map(self) -> Mapping[str, DSRef]:
+        if self.ds_map is not None:
+            return self.ds_map
+
+        src_srcs = (await self.src_grafana.get_datasources()).root
+        dst_srcs = (await self.dst_grafana.get_datasources()).root
+
+        self.ds_map = map_datasources(src_srcs, dst_srcs)
+
+        logger.info("Mapped datasources: %s", self.ds_map)
+
+        return self.ds_map
+
     async def sync_dashboard(
         self,
         dashboard_uid: str,
@@ -160,6 +182,10 @@ class GrafanaSync:
                 return False
 
             src_data = src_dashboard.dashboard
+
+            if self.migrate_datasources:
+                ds_map = await self.get_ds_map()
+                src_data.update_datasources(ds_map)
 
             if folder_uid == FOLDER_GENERAL:
                 target_folder = (
@@ -220,6 +246,7 @@ async def sync(
     relocate_folders: bool = True,
     relocate_dashboards: bool = True,
     dst_parent_uid: str | None = None,
+    migrate_datasources: bool = False,
 ):
     # Verify destination parent exists if specified
     if dst_parent_uid is not None and dst_parent_uid != FOLDER_GENERAL:
@@ -228,7 +255,12 @@ async def sync(
         except Exception as e:
             raise DestinationParentNotFoundError(dst_parent_uid) from e
 
-    syncer = GrafanaSync(src_grafana, dst_grafana, dst_parent_uid)
+    syncer = GrafanaSync(
+        src_grafana,
+        dst_grafana,
+        dst_parent_uid=dst_parent_uid,
+        migrate_datasources=migrate_datasources,
+    )
 
     # Track source dashboards if pruning is enabled
     src_dashboard_uids = set()

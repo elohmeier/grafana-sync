@@ -1,11 +1,21 @@
+import importlib.resources
+
 import pytest
 
 from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
-from grafana_sync.api.models import DashboardData
+from grafana_sync.api.models import DashboardData, DatasourceDefinition
 from grafana_sync.exceptions import DestinationParentNotFoundError, GrafanaApiError
 from grafana_sync.sync import sync
 
+from . import dashboards
+
 pytestmark = pytest.mark.docker
+
+
+def read_db(filename: str) -> DashboardData:
+    ref = importlib.resources.files(dashboards) / filename
+    with importlib.resources.as_file(ref) as path, open(path, "rb") as f:
+        return DashboardData.model_validate_json(f.read())
 
 
 async def test_sync_dashboard(grafana: GrafanaClient, grafana_dst: GrafanaClient):
@@ -20,6 +30,48 @@ async def test_sync_dashboard(grafana: GrafanaClient, grafana_dst: GrafanaClient
 
     dst_db = await grafana_dst.get_dashboard("dash1")
     assert dst_db.dashboard.title == "Dashboard 1"
+
+
+async def test_sync_dashboard_with_ds_migration(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    dashboard1 = read_db("simple-ds-var.json")
+
+    await grafana.update_dashboard(dashboard1)
+
+    await grafana.create_datasource(
+        DatasourceDefinition(
+            name="prometheus",
+            uid="P1809F7CD0C75ACF3",
+            type="prometheus",
+            access="proxy",
+        )
+    )
+
+    await grafana_dst.create_datasource(
+        DatasourceDefinition(
+            name="prometheus-dst",
+            uid="my-new-uid",
+            type="prometheus",
+            access="proxy",
+        )
+    )
+
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        migrate_datasources=True,
+    )
+
+    dst_db = await grafana_dst.get_dashboard("simple-ds-var")
+    assert dst_db.dashboard.title == "simple-ds-var"
+
+    assert dst_db.dashboard.templating is not None
+    assert dst_db.dashboard.templating.list_ is not None
+    assert dst_db.dashboard.templating.list_[0].current is not None
+
+    assert dst_db.dashboard.templating.list_[0].current.text == "prometheus-dst"
+    assert dst_db.dashboard.templating.list_[0].current.value == "my-new-uid"
 
 
 async def test_sync_folder(grafana: GrafanaClient, grafana_dst: GrafanaClient):
