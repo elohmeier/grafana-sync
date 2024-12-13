@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
+from grafana_sync.dashboards.models import DashboardData
+
 
 class CreateFolderResponse(BaseModel):
     """Response model for folder creation API."""
@@ -52,14 +54,6 @@ class SearchDashboardsResponse(RootModel):
     """Response model for dashboard search API."""
 
     root: list[SearchDashboardsResponseItem]
-
-
-class DashboardData(BaseModel):
-    uid: str
-    title: str
-    version: int | None = None
-
-    model_config = ConfigDict(extra="allow")
 
 
 class UpdateDashboardRequest(BaseModel):
