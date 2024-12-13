@@ -31,7 +31,9 @@ async def grafana(docker_ip, docker_services):
         try:
             yield client
         finally:
-            await client.delete_all_folders_and_dashboards()  # cleanup after test
+            await (
+                client.delete_all_folders_and_dashboards_and_datasources()
+            )  # cleanup after test
             await client.check_pristine()  # check if deletion succeeded
 
 
@@ -62,5 +64,7 @@ async def grafana_dst(docker_ip, docker_services):
         try:
             yield client
         finally:
-            await client.delete_all_folders_and_dashboards()  # cleanup after test
+            await (
+                client.delete_all_folders_and_dashboards_and_datasources()
+            )  # cleanup after test
             await client.check_pristine()  # check if deletion succeeded

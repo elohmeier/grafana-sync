@@ -19,6 +19,15 @@ class ExistingFoldersError(GrafanaNotPristineError):
         super().__init__(message)
 
 
+class ExistingDatasourcesError(GrafanaNotPristineError):
+    """Raised when Grafana instance has existing datasources."""
+
+    def __init__(self, datasource_count: int):
+        self.datasource_count = datasource_count
+        message = f"Grafana instance has {datasource_count} existing datasource(s)"
+        super().__init__(message)
+
+
 class ExistingDashboardsError(GrafanaNotPristineError):
     """Raised when Grafana instance has existing dashboards."""
 

@@ -36,6 +36,27 @@ class GetFolderResponse(BaseModel):
     parent_uid: str | None = Field(alias="parentUid", default=None)
 
 
+class DatasourceDefinition(BaseModel):
+    uid: str
+    name: str
+    type_: str = Field(alias="type")
+    access: str
+
+    model_config = ConfigDict(extra="allow")
+
+
+class GetDatasourcesResponse(RootModel):
+    root: list[DatasourceDefinition]
+
+
+class CreateDatasourceResponse(BaseModel):
+    datasource: DatasourceDefinition
+
+    id: int
+    message: str
+    name: str
+
+
 class SearchDashboardsResponseItem(BaseModel):
     """Model for individual dashboard items in search response."""
 

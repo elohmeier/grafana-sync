@@ -10,10 +10,13 @@ import httpx
 from httpx import Response
 
 from grafana_sync.api.models import (
+    CreateDatasourceResponse,
     CreateFolderResponse,
     CreateReportResponse,
     DashboardData,
+    DatasourceDefinition,
     GetDashboardResponse,
+    GetDatasourcesResponse,
     GetFolderResponse,
     GetFoldersResponse,
     GetReportResponse,
@@ -25,6 +28,7 @@ from grafana_sync.api.models import (
 )
 from grafana_sync.exceptions import (
     ExistingDashboardsError,
+    ExistingDatasourcesError,
     ExistingFoldersError,
     GrafanaApiError,
 )
@@ -353,6 +357,25 @@ class GrafanaClient:
         self._handle_error(response)
         return GetDashboardResponse.model_validate_json(response.content)
 
+    async def get_datasources(self) -> GetDatasourcesResponse:
+        response = await self.client.get("/api/datasources")
+        self._handle_error(response)
+        return GetDatasourcesResponse.model_validate_json(response.content)
+
+    async def create_datasource(
+        self, ds: DatasourceDefinition
+    ) -> CreateDatasourceResponse:
+        response = await self.client.post(
+            "/api/datasources", json=ds.model_dump(by_alias=True)
+        )
+        self._handle_error(response)
+        return CreateDatasourceResponse.model_validate_json(response.content)
+
+    async def delete_datasource(self, uid: str) -> None:
+        """Delete a datasource in Grafana."""
+        response = await self.client.delete(f"/api/datasources/uid/{uid}")
+        self._handle_error(response)
+
     async def get_reports(self) -> GetReportsResponse:
         """Get all reports.
 
@@ -448,6 +471,10 @@ class GrafanaClient:
                     yield res
 
     async def check_pristine(self) -> None:
+        datasources = (await self.get_datasources()).root
+        if len(datasources) > 0:
+            raise ExistingDatasourcesError(len(datasources))
+
         folders = (await self.get_folders()).root
         if len(folders) > 0:
             raise ExistingFoldersError(len(folders))
@@ -457,11 +484,11 @@ class GrafanaClient:
         if len(dashboards) > 0:
             raise ExistingDashboardsError(len(dashboards))
 
-    async def delete_all_folders_and_dashboards(self) -> None:
-        """Delete all dashboards and folders in the Grafana instance.
+    async def delete_all_folders_and_dashboards_and_datasources(self) -> None:
+        """Delete all dashboards, folders and datasources in the Grafana instance.
 
         Dashboards are deleted first, then folders, since folders cannot be deleted
-        while containing dashboards.
+        while containing dashboards. Then datasources are deleted.
         """
         # First delete all dashboards
         dashboards = (await self.search_dashboards()).root
@@ -474,3 +501,8 @@ class GrafanaClient:
         for folder in folders:
             logger.debug("Deleting folder %s", folder.uid)
             await self.delete_folder(folder.uid)
+
+        datasources = (await self.get_datasources()).root
+        for ds in datasources:
+            logger.debug("Deleting datasource %s", ds.uid)
+            await self.delete_datasource(ds.uid)
