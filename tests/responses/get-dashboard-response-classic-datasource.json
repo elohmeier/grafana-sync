@@ -1,0 +1,584 @@
+{
+  "meta": {
+    "type": "db",
+    "canSave": true,
+    "canEdit": true,
+    "canAdmin": false,
+    "canStar": true,
+    "canDelete": true,
+    "slug": "total-host-overview",
+    "url": "/d/HA3OWKPWz/total-host-overview",
+    "expires": "0001-01-01T00:00:00Z",
+    "created": "2020-07-02T06:47:43Z",
+    "updated": "2020-07-02T06:47:43Z",
+    "updatedBy": "user",
+    "createdBy": "user",
+    "version": 1,
+    "hasAcl": false,
+    "isFolder": false,
+    "folderId": 0,
+    "folderUid": "",
+    "folderTitle": "General",
+    "folderUrl": "",
+    "provisioned": false,
+    "provisionedExternalId": "",
+    "annotationsPermissions": {
+      "dashboard": { "canAdd": true, "canEdit": true, "canDelete": true },
+      "organization": { "canAdd": true, "canEdit": true, "canDelete": true }
+    }
+  },
+  "dashboard": {
+    "annotations": {
+      "list": [
+        {
+          "builtIn": 1,
+          "datasource": "-- Grafana --",
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations \u0026 Alerts",
+          "type": "dashboard"
+        }
+      ]
+    },
+    "editable": true,
+    "gnetId": null,
+    "graphTooltip": 0,
+    "id": 75,
+    "links": [],
+    "panels": [
+      {
+        "columns": [],
+        "datasource": "InfluxDB Produktion Telegraf",
+        "fieldConfig": { "defaults": { "custom": {} }, "overrides": [] },
+        "fontSize": "100%",
+        "gridPos": { "h": 15, "w": 7, "x": 0, "y": 0 },
+        "id": 2,
+        "links": [],
+        "pageSize": null,
+        "scroll": true,
+        "showHeader": true,
+        "sort": { "col": 2, "desc": true },
+        "styles": [
+          {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": "cell",
+            "colors": [
+              "rgba(50, 172, 45, 0.97)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(245, 54, 54, 0.9)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "mappingType": 1,
+            "pattern": "CPU Usage",
+            "thresholds": ["80", "90"],
+            "type": "number",
+            "unit": "percent"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": true,
+            "linkTargetBlank": true,
+            "linkTooltip": "Detail-Dashboard öffnen",
+            "linkUrl": "/d/Gri0UFsZz/telegraf-and-influx-windows-host-overview?var-hostname=${__cell}",
+            "mappingType": 1,
+            "pattern": "host",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "decimals": 2,
+            "pattern": "/.*/",
+            "thresholds": [],
+            "type": "number",
+            "unit": "short"
+          }
+        ],
+        "targets": [
+          {
+            "groupBy": [{ "params": ["host"], "type": "tag" }],
+            "measurement": "win_cpu",
+            "orderByTime": "ASC",
+            "policy": "default",
+            "refId": "A",
+            "resultFormat": "table",
+            "select": [
+              [
+                { "params": ["Percent_Processor_Time"], "type": "field" },
+                { "params": [], "type": "last" },
+                { "params": ["CPU Usage"], "type": "alias" }
+              ]
+            ],
+            "tags": []
+          }
+        ],
+        "title": "Windows: High Current CPU Load Overview",
+        "transform": "table",
+        "type": "table-old"
+      },
+      {
+        "columns": [],
+        "datasource": "InfluxDB Produktion Telegraf",
+        "fieldConfig": { "defaults": { "custom": {} }, "overrides": [] },
+        "fontSize": "100%",
+        "gridPos": { "h": 15, "w": 7, "x": 7, "y": 0 },
+        "id": 8,
+        "links": [],
+        "pageSize": null,
+        "scroll": true,
+        "showHeader": true,
+        "sort": { "col": 3, "desc": true },
+        "styles": [
+          {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": "cell",
+            "colors": [
+              "rgba(50, 172, 45, 0.97)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(245, 54, 54, 0.9)"
+            ],
+            "decimals": 2,
+            "pattern": "Disk Used",
+            "thresholds": ["80", "90"],
+            "type": "number",
+            "unit": "percent"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": true,
+            "linkTargetBlank": true,
+            "linkTooltip": "Detail-Dashboard öffnen",
+            "linkUrl": "/d/Gri0UFsZz/telegraf-and-influx-windows-host-overview?var-hostname=${__cell}",
+            "mappingType": 1,
+            "pattern": "host",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          }
+        ],
+        "targets": [
+          {
+            "groupBy": [
+              { "params": ["host"], "type": "tag" },
+              { "params": ["instance"], "type": "tag" }
+            ],
+            "measurement": "win_disk",
+            "orderByTime": "ASC",
+            "policy": "default",
+            "refId": "A",
+            "resultFormat": "table",
+            "select": [
+              [
+                { "params": ["Percent_Free_Space"], "type": "field" },
+                { "params": [], "type": "last" },
+                { "params": ["*-1+100"], "type": "math" },
+                { "params": ["Disk Used"], "type": "alias" }
+              ]
+            ],
+            "tags": []
+          }
+        ],
+        "title": "Windows: High FS Usage",
+        "transform": "table",
+        "type": "table-old"
+      },
+      {
+        "columns": [],
+        "datasource": "InfluxDB Produktion Telegraf",
+        "fieldConfig": { "defaults": { "custom": {} }, "overrides": [] },
+        "fontSize": "100%",
+        "gridPos": { "h": 15, "w": 7, "x": 14, "y": 0 },
+        "id": 10,
+        "links": [],
+        "pageSize": null,
+        "scroll": true,
+        "showHeader": true,
+        "sort": { "col": 2, "desc": false },
+        "styles": [
+          {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": "cell",
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "decimals": 2,
+            "pattern": "Available Memory",
+            "thresholds": ["1000000000", "2000000000", "4000000000"],
+            "type": "number",
+            "unit": "bytes"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": true,
+            "linkTargetBlank": true,
+            "linkTooltip": "Detail-Dashboard öffnen",
+            "linkUrl": "/d/Gri0UFsZz/telegraf-and-influx-windows-host-overview?var-hostname=${__cell}",
+            "mappingType": 1,
+            "pattern": "host",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          }
+        ],
+        "targets": [
+          {
+            "groupBy": [{ "params": ["host"], "type": "tag" }],
+            "measurement": "win_mem",
+            "orderByTime": "ASC",
+            "policy": "default",
+            "refId": "A",
+            "resultFormat": "table",
+            "select": [
+              [
+                { "params": ["Available_Bytes"], "type": "field" },
+                { "params": [], "type": "last" },
+                { "params": ["Available Memory"], "type": "alias" }
+              ]
+            ],
+            "tags": []
+          }
+        ],
+        "title": "Windows: High MEM Usage",
+        "transform": "table",
+        "type": "table-old"
+      },
+      {
+        "columns": [],
+        "datasource": "InfluxDB Produktion Telegraf",
+        "fieldConfig": { "defaults": { "custom": {} }, "overrides": [] },
+        "fontSize": "100%",
+        "gridPos": { "h": 15, "w": 7, "x": 0, "y": 15 },
+        "id": 4,
+        "links": [],
+        "pageSize": null,
+        "scroll": true,
+        "showHeader": true,
+        "sort": { "col": 2, "desc": true },
+        "styles": [
+          {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": "cell",
+            "colors": [
+              "rgba(50, 172, 45, 0.97)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(245, 54, 54, 0.9)"
+            ],
+            "decimals": 2,
+            "pattern": "CPU Usage",
+            "thresholds": ["80", "90"],
+            "type": "number",
+            "unit": "percent"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": true,
+            "linkTargetBlank": true,
+            "linkTooltip": "Detail-Dashboard öffnen",
+            "linkUrl": "/d/000000127/telegraf-system-dashboard?var-server=${__cell}",
+            "mappingType": 1,
+            "pattern": "host",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          }
+        ],
+        "targets": [
+          {
+            "groupBy": [{ "params": ["host"], "type": "tag" }],
+            "measurement": "cpu",
+            "orderByTime": "ASC",
+            "policy": "default",
+            "refId": "A",
+            "resultFormat": "table",
+            "select": [
+              [
+                { "params": ["usage_idle"], "type": "field" },
+                { "params": [], "type": "last" },
+                { "params": ["*-1+100"], "type": "math" },
+                { "params": ["CPU Usage"], "type": "alias" }
+              ]
+            ],
+            "tags": []
+          }
+        ],
+        "title": "Linux: High CPU Usage Hosts",
+        "transform": "table",
+        "type": "table-old"
+      },
+      {
+        "columns": [],
+        "datasource": "InfluxDB Produktion Telegraf",
+        "fieldConfig": { "defaults": { "custom": {} }, "overrides": [] },
+        "fontSize": "100%",
+        "gridPos": { "h": 15, "w": 7, "x": 7, "y": 15 },
+        "id": 6,
+        "links": [],
+        "pageSize": null,
+        "scroll": true,
+        "showHeader": true,
+        "sort": { "col": 3, "desc": true },
+        "styles": [
+          {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": "cell",
+            "colors": [
+              "rgba(50, 172, 45, 0.97)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(245, 54, 54, 0.9)"
+            ],
+            "decimals": 2,
+            "pattern": "Disk Usage",
+            "thresholds": ["80", "90"],
+            "type": "number",
+            "unit": "percent"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": true,
+            "linkTargetBlank": true,
+            "linkTooltip": "Detail-Dashboard öffnen",
+            "linkUrl": "/d/000000127/telegraf-system-dashboard?var-server=${__cell}",
+            "mappingType": 1,
+            "pattern": "host",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          }
+        ],
+        "targets": [
+          {
+            "groupBy": [
+              { "params": ["host"], "type": "tag" },
+              { "params": ["path"], "type": "tag" }
+            ],
+            "measurement": "disk",
+            "orderByTime": "ASC",
+            "policy": "default",
+            "refId": "A",
+            "resultFormat": "table",
+            "select": [
+              [
+                { "params": ["used_percent"], "type": "field" },
+                { "params": [], "type": "last" },
+                { "params": ["Disk Usage"], "type": "alias" }
+              ]
+            ],
+            "tags": [{ "key": "mode", "operator": "=", "value": "rw" }]
+          }
+        ],
+        "title": "Linux: High FS Usage",
+        "transform": "table",
+        "type": "table-old"
+      },
+      {
+        "columns": [],
+        "datasource": "InfluxDB Produktion Telegraf",
+        "fieldConfig": { "defaults": { "custom": {} }, "overrides": [] },
+        "fontSize": "100%",
+        "gridPos": { "h": 15, "w": 7, "x": 14, "y": 15 },
+        "id": 9,
+        "links": [],
+        "pageSize": null,
+        "scroll": true,
+        "showHeader": true,
+        "sort": { "col": 2, "desc": false },
+        "styles": [
+          {
+            "alias": "Time",
+            "align": "auto",
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "pattern": "Time",
+            "type": "hidden"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": "cell",
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "decimals": 2,
+            "pattern": "Available Memory",
+            "thresholds": ["1000000000", "2000000000", "4000000000"],
+            "type": "number",
+            "unit": "bytes"
+          },
+          {
+            "alias": "",
+            "align": "auto",
+            "colorMode": null,
+            "colors": [
+              "rgba(245, 54, 54, 0.9)",
+              "rgba(237, 129, 40, 0.89)",
+              "rgba(50, 172, 45, 0.97)"
+            ],
+            "dateFormat": "YYYY-MM-DD HH:mm:ss",
+            "decimals": 2,
+            "link": true,
+            "linkTargetBlank": true,
+            "linkTooltip": "Detail-Dashboard öffnen",
+            "linkUrl": "/d/000000127/telegraf-system-dashboard?var-server=${__cell}",
+            "mappingType": 1,
+            "pattern": "host",
+            "thresholds": [],
+            "type": "string",
+            "unit": "short"
+          }
+        ],
+        "targets": [
+          {
+            "groupBy": [{ "params": ["host"], "type": "tag" }],
+            "measurement": "mem",
+            "orderByTime": "ASC",
+            "policy": "default",
+            "refId": "A",
+            "resultFormat": "table",
+            "select": [
+              [
+                { "params": ["available"], "type": "field" },
+                { "params": [], "type": "last" },
+                { "params": ["Available Memory"], "type": "alias" }
+              ]
+            ],
+            "tags": []
+          }
+        ],
+        "title": "Linux: High MEM Usage",
+        "transform": "table",
+        "type": "table-old"
+      }
+    ],
+    "schemaVersion": 25,
+    "style": "dark",
+    "tags": [],
+    "templating": { "list": [] },
+    "time": { "from": "now-6h", "to": "now" },
+    "timepicker": {
+      "refresh_intervals": [
+        "10s",
+        "30s",
+        "1m",
+        "5m",
+        "15m",
+        "30m",
+        "1h",
+        "2h",
+        "1d"
+      ],
+      "time_options": [
+        "5m",
+        "15m",
+        "1h",
+        "6h",
+        "12h",
+        "24h",
+        "2d",
+        "7d",
+        "30d"
+      ]
+    },
+    "timezone": "",
+    "title": "Total Host Overview",
+    "uid": "HA3OWKPWz",
+    "version": 1
+  }
+}
