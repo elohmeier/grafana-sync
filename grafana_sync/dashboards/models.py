@@ -11,7 +11,7 @@ class DSRef(BaseModel):
 
 
 class DataSource(BaseModel):
-    type_: str = Field(alias="type")
+    type_: str | None = Field(alias="type", default=None)
     uid: str
 
     model_config = ConfigDict(extra="allow")

@@ -16,7 +16,7 @@ def read_response(filename: str) -> GetDashboardResponse:
 @pytest.mark.parametrize(
     ("filename"),
     [
-        ("get-dashboard-response-classic-datasource.json"),
+        ("get-dashboard-datasource-string.json"),
     ],
 )
 def test_read(filename):

@@ -85,19 +85,17 @@ async def test_sync_dashboard_with_ds_migration(
     assert dst_db.dashboard.templating.list_[0].current.value == "my-new-uid"
 
 
-async def test_sync_dashboard_with_classic_ds_migration(
+async def test_sync_dashboard_with_classic_ds_migration_datasource_string(
     grafana: GrafanaClient, grafana_dst: GrafanaClient
 ):
-    dashboard1 = read_response(
-        "get-dashboard-response-classic-datasource.json"
-    ).dashboard
+    dashboard1 = read_response("get-dashboard-datasource-string.json").dashboard
 
     await grafana.update_dashboard(dashboard1)
 
     await grafana.create_datasource(
         DatasourceDefinition(
             name="InfluxDB Produktion Telegraf",
-            uid="P1809F7CD0C75ACF3",
+            uid="old-uid",
             type="influxdb",
             access="proxy",
         )
@@ -118,8 +116,49 @@ async def test_sync_dashboard_with_classic_ds_migration(
         migrate_datasources=True,
     )
 
-    dst_db = await grafana_dst.get_dashboard("HA3OWKPWz")
-    assert dst_db.dashboard.title == "Total Host Overview"
+    dst_db = await grafana_dst.get_dashboard("datasource-string")
+    assert dst_db.dashboard.title == "datasource-string"
+
+    assert dst_db.dashboard.panels is not None
+    assert dst_db.dashboard.panels[0].datasource is not None
+    assert isinstance(dst_db.dashboard.panels[0].datasource, DataSource)
+    assert dst_db.dashboard.panels[0].datasource.type_ == "influxdb"
+    assert dst_db.dashboard.panels[0].datasource.uid == "my-new-uid"
+
+
+async def test_sync_dashboard_with_classic_ds_migration_panel_target(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    dashboard1 = read_response("get-dashboard-panel-target.json").dashboard
+
+    await grafana.update_dashboard(dashboard1)
+
+    await grafana.create_datasource(
+        DatasourceDefinition(
+            name="My InfluxDB DataSource",
+            uid="influx",
+            type="influxdb",
+            access="proxy",
+        )
+    )
+
+    await grafana_dst.create_datasource(
+        DatasourceDefinition(
+            name="influxdb-dst",
+            uid="my-new-uid",
+            type="influxdb",
+            access="proxy",
+        )
+    )
+
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        migrate_datasources=True,
+    )
+
+    dst_db = await grafana_dst.get_dashboard("panel-target")
+    assert dst_db.dashboard.title == "panel-target"
 
     assert dst_db.dashboard.panels is not None
     assert dst_db.dashboard.panels[0].datasource is not None

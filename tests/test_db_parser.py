@@ -53,8 +53,15 @@ def test_update_datasources(filename, ct):
     )
 
 
-def test_update_classic_datasource_from_response():
-    res = read_response("get-dashboard-response-classic-datasource.json")
+@pytest.mark.parametrize(
+    ("filename", "ct"),
+    [
+        ("get-dashboard-datasource-string.json", 1),
+        ("get-dashboard-panel-target.json", 1),
+    ],
+)
+def test_update_classic_datasource_from_response(filename, ct):
+    res = read_response(filename)
     db = res.dashboard
 
     ds_config = {
@@ -65,9 +72,9 @@ def test_update_classic_datasource_from_response():
 
     db.upgrade_datasources(ds_config)
 
-    assert (
-        db.update_datasources(
-            {"influxdb-prod-telegraf": DSRef(uid="foobar", name="foobar")}
-        )
-        == 1
+    assert ct == db.update_datasources(
+        {
+            "influxdb-prod-telegraf": DSRef(uid="foobar", name="foobar"),
+            "influx": DSRef(uid="foobar", name="foobar"),
+        }
     )
