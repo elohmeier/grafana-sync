@@ -3,11 +3,16 @@ import importlib.resources
 import pytest
 
 from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
-from grafana_sync.api.models import DashboardData, DatasourceDefinition
+from grafana_sync.api.models import (
+    DashboardData,
+    DatasourceDefinition,
+    GetDashboardResponse,
+)
+from grafana_sync.dashboards.models import DataSource
 from grafana_sync.exceptions import DestinationParentNotFoundError, GrafanaApiError
 from grafana_sync.sync import sync
 
-from . import dashboards
+from . import dashboards, responses
 
 pytestmark = pytest.mark.docker
 
@@ -16,6 +21,12 @@ def read_db(filename: str) -> DashboardData:
     ref = importlib.resources.files(dashboards) / filename
     with importlib.resources.as_file(ref) as path, open(path, "rb") as f:
         return DashboardData.model_validate_json(f.read())
+
+
+def read_response(filename: str) -> GetDashboardResponse:
+    ref = importlib.resources.files(responses) / filename
+    with importlib.resources.as_file(ref) as path, open(path, "rb") as f:
+        return GetDashboardResponse.model_validate_json(f.read())
 
 
 async def test_sync_dashboard(grafana: GrafanaClient, grafana_dst: GrafanaClient):
@@ -72,6 +83,49 @@ async def test_sync_dashboard_with_ds_migration(
 
     assert dst_db.dashboard.templating.list_[0].current.text == "prometheus-dst"
     assert dst_db.dashboard.templating.list_[0].current.value == "my-new-uid"
+
+
+async def test_sync_dashboard_with_classic_ds_migration(
+    grafana: GrafanaClient, grafana_dst: GrafanaClient
+):
+    dashboard1 = read_response(
+        "get-dashboard-response-classic-datasource.json"
+    ).dashboard
+
+    await grafana.update_dashboard(dashboard1)
+
+    await grafana.create_datasource(
+        DatasourceDefinition(
+            name="InfluxDB Produktion Telegraf",
+            uid="P1809F7CD0C75ACF3",
+            type="influxdb",
+            access="proxy",
+        )
+    )
+
+    await grafana_dst.create_datasource(
+        DatasourceDefinition(
+            name="influxdb-dst",
+            uid="my-new-uid",
+            type="influxdb",
+            access="proxy",
+        )
+    )
+
+    await sync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        migrate_datasources=True,
+    )
+
+    dst_db = await grafana_dst.get_dashboard("HA3OWKPWz")
+    assert dst_db.dashboard.title == "Total Host Overview"
+
+    assert dst_db.dashboard.panels is not None
+    assert dst_db.dashboard.panels[0].datasource is not None
+    assert isinstance(dst_db.dashboard.panels[0].datasource, DataSource)
+    assert dst_db.dashboard.panels[0].datasource.type_ == "influxdb"
+    assert dst_db.dashboard.panels[0].datasource.uid == "my-new-uid"
 
 
 async def test_sync_folder(grafana: GrafanaClient, grafana_dst: GrafanaClient):

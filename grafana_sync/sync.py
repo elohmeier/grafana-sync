@@ -3,7 +3,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
-from grafana_sync.dashboards.models import DSRef
+from grafana_sync.api.models import DatasourceDefinition
+from grafana_sync.dashboards.models import DataSource, DSRef
 from grafana_sync.datasource_mapper import map_datasources
 from grafana_sync.exceptions import DestinationParentNotFoundError
 
@@ -18,6 +19,9 @@ class GrafanaSync:
     """Handles synchronization of folders and dashboards between Grafana instances."""
 
     ds_map: Mapping[str, DSRef] | None
+    src_datasources: list[DatasourceDefinition] | None
+    dst_datasources: list[DatasourceDefinition] | None
+    src_ds_config: Mapping[str, DataSource] | None
 
     def __init__(
         self,
@@ -33,6 +37,9 @@ class GrafanaSync:
         self.dst_parent_uid = dst_parent_uid
         self.migrate_datasources = migrate_datasources
         self.ds_map = None
+        self.src_datasources = None
+        self.dst_datasources = None
+        self.src_ds_config = None
 
     async def sync_folder(
         self,
@@ -151,18 +158,46 @@ class GrafanaSync:
         """Remove dynamic fields from dashboard data for comparison."""
         return dashboard_data.model_dump(exclude={"id", "version"}, by_alias=True)
 
+    async def get_src_datasources(self):
+        if self.src_datasources is not None:
+            return self.src_datasources
+
+        self.src_datasources = (await self.src_grafana.get_datasources()).root
+        return self.src_datasources
+
+    async def get_dst_datasources(self):
+        if self.dst_datasources is not None:
+            return self.dst_datasources
+
+        self.dst_datasources = (await self.dst_grafana.get_datasources()).root
+        return self.dst_datasources
+
     async def get_ds_map(self) -> Mapping[str, DSRef]:
         if self.ds_map is not None:
             return self.ds_map
 
-        src_srcs = (await self.src_grafana.get_datasources()).root
-        dst_srcs = (await self.dst_grafana.get_datasources()).root
-
-        self.ds_map = map_datasources(src_srcs, dst_srcs)
+        self.ds_map = map_datasources(
+            await self.get_src_datasources(),
+            await self.get_dst_datasources(),
+        )
 
         logger.info("Mapped datasources: %s", self.ds_map)
 
         return self.ds_map
+
+    async def get_src_ds_config(self) -> Mapping[str, DataSource]:
+        if self.src_ds_config is not None:
+            return self.src_ds_config
+
+        self.src_ds_config = {
+            ds.name: DataSource(
+                type=ds.type_,
+                uid=ds.uid,
+            )
+            for ds in (await self.get_src_datasources())
+        }
+
+        return self.src_ds_config
 
     async def sync_dashboard(
         self,
@@ -185,6 +220,8 @@ class GrafanaSync:
 
             if self.migrate_datasources:
                 ds_map = await self.get_ds_map()
+                src_ds_config = await self.get_src_ds_config()
+                src_data.upgrade_datasources(src_ds_config)
                 src_data.update_datasources(ds_map)
 
             if folder_uid == FOLDER_GENERAL:

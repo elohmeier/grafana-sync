@@ -2,15 +2,22 @@ import importlib.resources
 
 import pytest
 
-from grafana_sync.dashboards.models import DashboardData, DSRef
+from grafana_sync.api.models import GetDashboardResponse
+from grafana_sync.dashboards.models import DashboardData, DataSource, DSRef
 
-from . import dashboards
+from . import dashboards, responses
 
 
 def read_db(filename: str) -> DashboardData:
     ref = importlib.resources.files(dashboards) / filename
     with importlib.resources.as_file(ref) as path, open(path, "rb") as f:
         return DashboardData.model_validate_json(f.read())
+
+
+def read_response(filename: str) -> GetDashboardResponse:
+    ref = importlib.resources.files(responses) / filename
+    with importlib.resources.as_file(ref) as path, open(path, "rb") as f:
+        return GetDashboardResponse.model_validate_json(f.read())
 
 
 @pytest.mark.parametrize(
@@ -43,4 +50,24 @@ def test_update_datasources(filename, ct):
 
     assert ct == db.update_datasources(
         {"P1809F7CD0C75ACF3": DSRef(uid="foobar", name="foobar")}
+    )
+
+
+def test_update_classic_datasource_from_response():
+    res = read_response("get-dashboard-response-classic-datasource.json")
+    db = res.dashboard
+
+    ds_config = {
+        "InfluxDB Produktion Telegraf": DataSource(
+            type="influxdb", uid="influxdb-prod-telegraf"
+        )
+    }
+
+    db.upgrade_datasources(ds_config)
+
+    assert (
+        db.update_datasources(
+            {"influxdb-prod-telegraf": DSRef(uid="foobar", name="foobar")}
+        )
+        == 1
     )

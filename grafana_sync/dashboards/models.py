@@ -43,16 +43,28 @@ class Target(BaseModel):
 
 
 class Panel(BaseModel):
-    datasource: DataSource | None = None
+    datasource: DataSource | str | None = None
     targets: list[Target] | None = None
     panels: list["Panel"] | None = None
 
     model_config = ConfigDict(extra="allow")
 
+    def upgrade_datasource(self, ds_config: Mapping[str, DataSource]) -> None:
+        """Upgrade string-datasource into an datasource object.
+
+        Older Grafana versions used to put a string (name) into the datasource field.
+        """
+        if isinstance(self.datasource, str):
+            self.datasource = ds_config[self.datasource]
+
     @property
     def all_datasources(self) -> Generator[DataSource, None, None]:
         if self.datasource is not None:
-            yield self.datasource
+            if isinstance(self.datasource, str):
+                msg = f"please run upgrade_datasource to resolve datasource `{self.datasource}`"
+                raise ValueError(msg)
+            else:
+                yield self.datasource
 
         if self.targets is not None:
             for t in self.targets:
@@ -62,7 +74,11 @@ class Panel(BaseModel):
             for p in self.panels:
                 yield from p.all_datasources
 
-    def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
+    def update_datasources(
+        self,
+        ds_map: Mapping[str, DSRef],
+        strict=False,
+    ) -> int:
         ct = 0
 
         for ds in self.all_datasources:
@@ -161,7 +177,16 @@ class DashboardData(BaseModel):
     def variable_datasource_count(self) -> int:
         return len([ds for ds in self.all_datasources if ds.is_variable])
 
-    def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
+    def upgrade_datasources(self, ds_config: Mapping[str, DataSource]) -> None:
+        if self.panels is not None:
+            for p in self.panels:
+                p.upgrade_datasource(ds_config)
+
+    def update_datasources(
+        self,
+        ds_map: Mapping[str, DSRef],
+        strict=False,
+    ) -> int:
         ct = 0
 
         if self.panels is not None:
