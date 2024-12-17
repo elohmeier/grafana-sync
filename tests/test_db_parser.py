@@ -17,6 +17,7 @@ def read_db(filename: str) -> DashboardData:
     ("filename", "total_ct", "var_ct"),
     [
         ("haproxy-2-full.json", 310, 310),
+        ("host-overview.json", 12, 0),
         ("simple-ds-var.json", 2, 2),
         ("simple-novar.json", 2, 0),
     ],
@@ -32,6 +33,7 @@ def test_datasource_detection(filename, total_ct, var_ct):
     ("filename", "ct"),
     [
         ("haproxy-2-full.json", 0),
+        ("host-overview.json", 0),
         ("simple-ds-var.json", 1),
         ("simple-novar.json", 2),
     ],
