@@ -89,8 +89,8 @@ class Panel(BaseModel):
 
 
 class TemplatingItemCurrent(BaseModel):
-    text: str | list[str]
-    value: str | list[str]
+    text: str | list[str] | None = Field(default=None)
+    value: str | list[str] | None = Field(default=None)
 
     def update_datasource(self, ds_map: Mapping[str, DSRef], strict=False) -> bool:
         if not isinstance(self.text, str):
@@ -122,6 +122,10 @@ class TemplatingItem(BaseModel):
         if self.datasource is not None:
             yield self.datasource
 
+    @property
+    def is_datasource(self) -> bool:
+        return self.type_ == "datasource"
+
 
 class Templating(BaseModel):
     list_: list[TemplatingItem] | None = Field(alias="list", default=None)
@@ -141,7 +145,7 @@ class Templating(BaseModel):
         ct = 0
 
         for t in self.list_:
-            if t.type_ != "datasource" or t.current is None:
+            if not t.is_datasource or t.current is None:
                 continue
 
             if t.current.update_datasource(ds_map, strict):
