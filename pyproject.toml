@@ -1,6 +1,6 @@
 [project]
 name = "grafana-sync"
-version = "0.10.7"
+version = "0.10.8"
 description = "Sync Grafana dashboards and folders"
 readme = "README.md"
 authors = [{ name = "Enno Richter" }]
