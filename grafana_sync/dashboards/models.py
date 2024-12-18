@@ -34,7 +34,11 @@ class DataSource(BaseModel):
 
 
 class Target(BaseModel):
+    expr: str | None = None
+    ref_id: str | None = Field(alias="ref_id", default=None)
     datasource: DataSource | None = None
+
+    model_config = ConfigDict(extra="allow")
 
     @property
     def all_datasources(self) -> Generator[DataSource, None, None]:
@@ -49,13 +53,9 @@ class Panel(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    def upgrade_datasource(self, ds_config: Mapping[str, DataSource]) -> None:
-        """Upgrade string-datasource into an datasource object.
-
-        Older Grafana versions used to put a string (name) into the datasource field.
-        """
-        if isinstance(self.datasource, str):
-            self.datasource = ds_config[self.datasource]
+    @property
+    def has_variable_datasource(self) -> bool:
+        return isinstance(self.datasource, str) and self.datasource.startswith("$")
 
     @property
     def all_datasources(self) -> Generator[DataSource, None, None]:
@@ -74,6 +74,14 @@ class Panel(BaseModel):
             for p in self.panels:
                 yield from p.all_datasources
 
+    def upgrade_datasource(self, ds_config: Mapping[str, DataSource]) -> None:
+        """Upgrade string-datasource into an datasource object.
+
+        Older Grafana versions used to put a string (name) into the datasource field.
+        """
+        if isinstance(self.datasource, str) and not self.has_variable_datasource:
+            self.datasource = ds_config[self.datasource]
+
     def update_datasources(
         self,
         ds_map: Mapping[str, DSRef],
@@ -89,8 +97,8 @@ class Panel(BaseModel):
 
 
 class TemplatingItemCurrent(BaseModel):
-    text: str | list[str] | None = Field(default=None)
-    value: str | list[str] | None = Field(default=None)
+    text: str | list[str] | None = None
+    value: str | list[str] | None = None
 
     def update_datasource(self, ds_map: Mapping[str, DSRef], strict=False) -> bool:
         if not isinstance(self.text, str):
@@ -110,8 +118,14 @@ class TemplatingItemCurrent(BaseModel):
         return True
 
 
+class TemplatingItemQuery(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
 class TemplatingItem(BaseModel):
     current: TemplatingItemCurrent | None = None
+    name: str | None = None
+    query: str | TemplatingItemQuery | None = None
     datasource: DataSource | str | None = None
     type_: str = Field(alias="type")
 

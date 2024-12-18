@@ -9,6 +9,9 @@ from grafana_sync.dashboards.models import (
     DSRef,
     Panel,
     Target,
+    Templating,
+    TemplatingItem,
+    TemplatingItemCurrent,
 )
 
 from . import dashboards, responses
@@ -108,3 +111,42 @@ def test_update_classic_datasource_from_response(filename, ct):
             "influx": DSRef(uid="foobar", name="foobar"),
         }
     )
+
+
+def test_upgrade_variable_template_datasource():
+    db = DashboardData(
+        uid="test",
+        title="test",
+        panels=[
+            Panel(
+                datasource="$datasource",
+                targets=[
+                    Target(
+                        expr="sum(up == 1)",
+                        ref_id="A",
+                    )
+                ],
+            )
+        ],
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    current=TemplatingItemCurrent(
+                        text="prometheus", value="prometheus"
+                    ),
+                    name="datasource",
+                    query="prometheus",
+                    type="datasource",
+                ),
+                TemplatingItem(
+                    current=TemplatingItemCurrent(),
+                    datasource="$datasource",
+                    name="Cluster",
+                    query="label_values(kube_pod_info,cluster)",
+                    type="query",
+                ),
+            ]
+        ),
+    )
+
+    db.upgrade_datasources(ds_config={})
