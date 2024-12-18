@@ -61,8 +61,9 @@ class Panel(BaseModel):
     def all_datasources(self) -> Generator[DataSource, None, None]:
         if self.datasource is not None:
             if isinstance(self.datasource, str):
-                msg = f"please run upgrade_datasource to resolve datasource `{self.datasource}`"
-                raise ValueError(msg)
+                if not self.has_variable_datasource:
+                    msg = f"please run upgrade_datasource to resolve datasource `{self.datasource}`"
+                    raise ValueError(msg)
             else:
                 yield self.datasource
 
