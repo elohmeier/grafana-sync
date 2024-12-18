@@ -252,3 +252,37 @@ def test_upgrade_string_datasource():
             ]
         ),
     )
+
+
+def test_map_template_datasource():
+    db = DashboardData(
+        uid="test",
+        title="test",
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    datasource=DataSource(type="influxdb", uid="old-uid"),
+                    name="Cluster",
+                    query="label_values(kube_pod_info,cluster)",
+                    type="query",
+                ),
+            ]
+        ),
+    )
+
+    db.update_datasources(ds_map={"old-uid": DSRef(uid="new-uid", name="influxdb")})
+
+    assert db == DashboardData(
+        uid="test",
+        title="test",
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    datasource=DataSource(type="influxdb", uid="new-uid"),
+                    name="Cluster",
+                    query="label_values(kube_pod_info,cluster)",
+                    type="query",
+                ),
+            ]
+        ),
+    )

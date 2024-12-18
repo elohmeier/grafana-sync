@@ -140,12 +140,28 @@ class TemplatingItem(BaseModel):
             yield self.datasource
 
     @property
-    def is_datasource(self) -> bool:
-        return self.type_ == "datasource"
-
-    @property
     def has_variable_datasource(self) -> bool:
         return isinstance(self.datasource, str) and self.datasource.startswith("$")
+
+    def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
+        ct = 0
+
+        if (
+            self.type_ == "datasource"
+            and self.current is not None
+            and self.current.update_datasource(ds_map, strict)
+        ):
+            ct += 1
+
+        if (
+            self.type_ == "query"
+            and self.datasource is not None
+            and isinstance(self.datasource, DataSource)
+            and self.datasource.update(ds_map, strict)
+        ):
+            ct += 1
+
+        return ct
 
 
 class Templating(BaseModel):
@@ -166,11 +182,7 @@ class Templating(BaseModel):
         ct = 0
 
         for t in self.list_:
-            if not t.is_datasource or t.current is None:
-                continue
-
-            if t.current.update_datasource(ds_map, strict):
-                ct += 1
+            ct += t.update_datasources(ds_map, strict)
 
         return ct
 
