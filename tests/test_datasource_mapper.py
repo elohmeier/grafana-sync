@@ -254,6 +254,36 @@ def test_upgrade_string_datasource():
     )
 
 
+def test_upgrade_nested_string_datasource():
+    db = DashboardData(
+        uid="test",
+        title="test",
+        panels=[
+            Panel(
+                datasource="My InfluxDB",
+                panels=[Panel(datasource="My InfluxDB")],
+            )
+        ],
+    )
+
+    db.upgrade_datasources(
+        ds_config={
+            "My InfluxDB": DataSource(uid="influx", type="influxdb"),
+        }
+    )
+
+    assert db == DashboardData(
+        uid="test",
+        title="test",
+        panels=[
+            Panel(
+                datasource=DataSource(type="influxdb", uid="influx"),
+                panels=[Panel(datasource=DataSource(type="influxdb", uid="influx"))],
+            )
+        ],
+    )
+
+
 def test_map_template_datasource():
     db = DashboardData(
         uid="test",

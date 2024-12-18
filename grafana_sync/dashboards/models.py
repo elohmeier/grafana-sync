@@ -84,6 +84,10 @@ class Panel(BaseModel):
         if isinstance(self.datasource, str) and not self.has_variable_datasource:
             self.datasource = ds_config[self.datasource]
 
+        if self.panels is not None:
+            for p in self.panels:
+                p.upgrade_datasource(ds_config)
+
     def update_datasources(
         self,
         ds_map: Mapping[str, DSRef],
