@@ -4,12 +4,13 @@ from typing import TYPE_CHECKING
 import asyncclick as click
 from rich import print as rprint
 from rich import print_json
+from rich.console import Console
 from rich.tree import Tree
 
 from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
 from grafana_sync.backup import GrafanaBackup
 from grafana_sync.restore import GrafanaRestore
-from grafana_sync.sync import sync
+from grafana_sync.sync import GrafanaSync
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -289,17 +290,25 @@ async def sync_folders(
     async with GrafanaClient(
         dst_url, dst_api_key, dst_username, dst_password
     ) as dst_grafana:
-        await sync(
-            src_grafana=src_grafana,
-            dst_grafana=dst_grafana,
+        syncer = GrafanaSync(
+            src_grafana,
+            dst_grafana,
+            dst_parent_uid=dst_parent_uid,
+            migrate_datasources=migrate_datasources,
+        )
+
+        table = await syncer.get_datasource_mapping_cli_table()
+
+        console = Console()
+        console.print(table)
+
+        await syncer.sync(
             folder_uid=folder_uid,
             recursive=recursive,
             include_dashboards=include_dashboards,
             prune=prune,
             relocate_folders=relocate_folders,
             relocate_dashboards=relocate_dashboards,
-            dst_parent_uid=dst_parent_uid,
-            migrate_datasources=migrate_datasources,
         )
 
 

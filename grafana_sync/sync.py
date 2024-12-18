@@ -9,6 +9,8 @@ from grafana_sync.datasource_mapper import map_datasources
 from grafana_sync.exceptions import DestinationParentNotFoundError
 
 if TYPE_CHECKING:
+    from rich.table import Table
+
     from grafana_sync.api.client import GrafanaClient
     from grafana_sync.api.models import DashboardData
 
@@ -181,9 +183,39 @@ class GrafanaSync:
             await self.get_dst_datasources(),
         )
 
-        logger.info("Mapped datasources: %s", self.ds_map)
+        logger.debug("Mapped datasources: %s", self.ds_map)
 
         return self.ds_map
+
+    async def get_datasource_mapping_cli_table(self) -> "Table":
+        from rich.table import Table
+
+        table = Table(title="Data Source Mapping")
+
+        table.add_column("SRC Name")
+        table.add_column("SRC UID")
+        table.add_column("SRC Type")
+        table.add_column("DST Name")
+        table.add_column("DST UID")
+        table.add_column("DST Type")
+
+        ds_map = await self.get_ds_map()
+        src_datasources = await self.get_src_datasources()
+        dst_datasources = await self.get_dst_datasources()
+
+        for src_uid, dst_ds_ref in ds_map.items():
+            src_ds = next(ds for ds in src_datasources if ds.uid == src_uid)
+            dst_ds = next(ds for ds in dst_datasources if ds.uid == dst_ds_ref.uid)
+            table.add_row(
+                src_ds.name,
+                src_ds.uid,
+                src_ds.type_,
+                dst_ds.name,
+                dst_ds.uid,
+                dst_ds.type_,
+            )
+
+        return table
 
     async def get_src_ds_config(self) -> Mapping[str, DataSource]:
         if self.src_ds_config is not None:
@@ -271,75 +303,67 @@ class GrafanaSync:
             )
             return True
 
+    async def ensure_dst_parent_exists(self) -> None:
+        """Verify destination parent exists if specified."""
+        if self.dst_parent_uid is not None and self.dst_parent_uid != FOLDER_GENERAL:
+            try:
+                await self.dst_grafana.get_folder(self.dst_parent_uid)
+            except Exception as e:
+                raise DestinationParentNotFoundError(self.dst_parent_uid) from e
 
-async def sync(
-    *,
-    src_grafana: "GrafanaClient",
-    dst_grafana: "GrafanaClient",
-    folder_uid: str = FOLDER_GENERAL,
-    recursive: bool = True,
-    include_dashboards: bool = True,
-    prune: bool = False,
-    relocate_folders: bool = True,
-    relocate_dashboards: bool = True,
-    dst_parent_uid: str | None = None,
-    migrate_datasources: bool = False,
-):
-    # Verify destination parent exists if specified
-    if dst_parent_uid is not None and dst_parent_uid != FOLDER_GENERAL:
-        try:
-            await dst_grafana.get_folder(dst_parent_uid)
-        except Exception as e:
-            raise DestinationParentNotFoundError(dst_parent_uid) from e
-
-    syncer = GrafanaSync(
-        src_grafana,
-        dst_grafana,
-        dst_parent_uid=dst_parent_uid,
-        migrate_datasources=migrate_datasources,
-    )
-
-    # Track source dashboards if pruning is enabled
-    src_dashboard_uids = set()
-    dst_dashboard_uids = set()
-
-    if include_dashboards and prune:
-        # Get all dashboards in destination folders before we start syncing
-        dst_dashboard_uids = await syncer.get_folder_dashboards(
-            dst_grafana, folder_uid, recursive
-        )
-
-    # if a folder was requested sync it first
-    if folder_uid != FOLDER_GENERAL:
-        await syncer.sync_folder(folder_uid, can_move=False)
-
-    # Now walk and sync child folders and optionally dashboards
-    async for root_uid, folders, dashboards in src_grafana.walk(
-        folder_uid, recursive, include_dashboards=include_dashboards
+    async def sync(
+        self,
+        *,
+        folder_uid: str = FOLDER_GENERAL,
+        recursive: bool = True,
+        include_dashboards: bool = True,
+        prune: bool = False,
+        relocate_folders: bool = True,
+        relocate_dashboards: bool = True,
     ):
-        for folder in folders.root:
-            if folder == FOLDER_SHAREDWITHME:
-                continue  # skip unsyncable folder
+        await self.ensure_dst_parent_exists()
 
-            await syncer.sync_folder(folder.uid, can_move=True)
+        # Track source dashboards if pruning is enabled
+        src_dashboard_uids = set()
+        dst_dashboard_uids = set()
 
-        # Sync dashboards if requested
-        if include_dashboards:
-            for dashboard in dashboards.root:
-                dashboard_uid = dashboard.uid
-                if await syncer.sync_dashboard(
-                    dashboard_uid, root_uid, relocate=relocate_dashboards
-                ):
-                    src_dashboard_uids.add(dashboard_uid)
+        if include_dashboards and prune:
+            # Get all dashboards in destination folders before we start syncing
+            dst_dashboard_uids = await self.get_folder_dashboards(
+                self.dst_grafana, folder_uid, recursive
+            )
 
-    if relocate_folders:
-        logger.info("relocation folders to updated parents if needed")
-        await syncer.move_folders_to_new_parents()
-    else:
-        logger.info("skipping folder relocation (disabled)")
+        # if a folder was requested sync it first
+        if folder_uid != FOLDER_GENERAL:
+            await self.sync_folder(folder_uid, can_move=False)
 
-    # Prune dashboards that don't exist in source
-    if include_dashboards and prune:
-        dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
-        for dashboard_uid in dashboards_to_delete:
-            await syncer.delete_dashboard(dashboard_uid)
+        # Now walk and sync child folders and optionally dashboards
+        async for root_uid, folders, dashboards in self.src_grafana.walk(
+            folder_uid, recursive, include_dashboards=include_dashboards
+        ):
+            for folder in folders.root:
+                if folder == FOLDER_SHAREDWITHME:
+                    continue  # skip unsyncable folder
+
+                await self.sync_folder(folder.uid, can_move=True)
+
+            # Sync dashboards if requested
+            if include_dashboards:
+                for dashboard in dashboards.root:
+                    dashboard_uid = dashboard.uid
+                    if await self.sync_dashboard(
+                        dashboard_uid, root_uid, relocate=relocate_dashboards
+                    ):
+                        src_dashboard_uids.add(dashboard_uid)
+
+        if relocate_folders:
+            logger.info("relocation folders to updated parents if needed")
+            await self.move_folders_to_new_parents()
+        else:
+            logger.info("skipping folder relocation (disabled)")
+
+        # Prune dashboards that don't exist in source
+        if include_dashboards and prune:
+            dashboards_to_delete = dst_dashboard_uids - src_dashboard_uids
+            for dashboard_uid in dashboards_to_delete:
+                await self.delete_dashboard(dashboard_uid)

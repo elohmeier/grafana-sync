@@ -1,6 +1,9 @@
 import importlib.resources
+import io
 
 import pytest
+from rich import box
+from rich.console import Console
 
 from grafana_sync.api.client import FOLDER_GENERAL, GrafanaClient
 from grafana_sync.api.models import (
@@ -10,7 +13,7 @@ from grafana_sync.api.models import (
 )
 from grafana_sync.dashboards.models import DataSource
 from grafana_sync.exceptions import DestinationParentNotFoundError, GrafanaApiError
-from grafana_sync.sync import sync
+from grafana_sync.sync import GrafanaSync
 
 from . import dashboards, responses
 
@@ -34,10 +37,10 @@ async def test_sync_dashboard(grafana: GrafanaClient, grafana_dst: GrafanaClient
 
     await grafana.update_dashboard(dashboard1)
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-    )
+    ).sync()
 
     dst_db = await grafana_dst.get_dashboard("dash1")
     assert dst_db.dashboard.title == "Dashboard 1"
@@ -68,11 +71,11 @@ async def test_sync_dashboard_with_ds_migration(
         )
     )
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         migrate_datasources=True,
-    )
+    ).sync()
 
     dst_db = await grafana_dst.get_dashboard("simple-ds-var")
     assert dst_db.dashboard.title == "simple-ds-var"
@@ -110,11 +113,11 @@ async def test_sync_dashboard_with_classic_ds_migration_datasource_string(
         )
     )
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         migrate_datasources=True,
-    )
+    ).sync()
 
     dst_db = await grafana_dst.get_dashboard("datasource-string")
     assert dst_db.dashboard.title == "datasource-string"
@@ -151,11 +154,11 @@ async def test_sync_dashboard_with_classic_ds_migration_panel_target(
         )
     )
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         migrate_datasources=True,
-    )
+    ).sync()
 
     dst_db = await grafana_dst.get_dashboard("panel-target")
     assert dst_db.dashboard.title == "panel-target"
@@ -173,10 +176,10 @@ async def test_sync_folder(grafana: GrafanaClient, grafana_dst: GrafanaClient):
 
     await grafana.update_dashboard(dashboard1, folder_uid="folder1")
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-    )
+    ).sync()
 
     dst_db = await grafana_dst.get_dashboard("dash1")
     assert dst_db.dashboard.title == "Dashboard 1"
@@ -210,11 +213,10 @@ async def test_sync_folder_relocation(
     assert src_child.parent_uid == "parent2"
 
     # Sync should move the folder in destination
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-        recursive=True,
-    )
+    ).sync(recursive=True)
 
     # Verify folder was moved
     dst_child = await grafana_dst.get_folder("child")
@@ -244,12 +246,10 @@ async def test_sync_folder_no_relocation(
     assert src_child.parent_uid == "parent2"
 
     # Sync with relocate_folders=False should not move the folder in destination
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-        recursive=True,
-        relocate_folders=False,
-    )
+    ).sync(recursive=True, relocate_folders=False)
 
     # Verify folder was NOT moved in destination
     dst_child = await grafana_dst.get_folder("child")
@@ -279,10 +279,10 @@ async def test_sync_dashboard_relocation(
     assert src_db.meta.folder_uid == "folder2"
 
     # Sync should move the dashboard in destination
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-    )
+    ).sync()
 
     # Verify dashboard was moved
     dst_db = await grafana_dst.get_dashboard("dash1")
@@ -300,11 +300,10 @@ async def test_sync_selected_folder(grafana: GrafanaClient, grafana_dst: Grafana
     await grafana.update_dashboard(dashboard2, folder_uid="folder2")
     await grafana.update_dashboard(dashboard3)  # general
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-        folder_uid="folder1",
-    )
+    ).sync(folder_uid="folder1")
 
     dst_db = await grafana_dst.get_dashboard("dash1")
     assert dst_db.dashboard.title == "Dashboard 1"
@@ -338,11 +337,10 @@ async def test_sync_dashboard_no_relocation(
     assert src_db.meta.folder_uid == "folder2"
 
     # Sync with relocate_dashboards=False should not move the dashboard in destination
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-        relocate_dashboards=False,
-    )
+    ).sync(relocate_dashboards=False)
 
     # Get version before sync
     dst_db_before = await grafana_dst.get_dashboard("dash1")
@@ -377,11 +375,11 @@ async def test_sync_to_destination_parent(
     await grafana.update_dashboard(dashboard3, folder_uid="child")
 
     # Sync everything under the destination parent
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         dst_parent_uid="dst_parent",
-    )
+    ).sync()
 
     # Verify folders were created under destination parent
     dst_folder1 = await grafana_dst.get_folder("folder1")
@@ -418,11 +416,11 @@ async def test_sync_to_general_folder(
     await grafana.update_dashboard(dashboard, folder_uid="child")
 
     # Sync with dst_parent_uid set to FOLDER_GENERAL
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         dst_parent_uid=FOLDER_GENERAL,
-    )
+    ).sync()
 
     # Verify parent folder is at root level
     dst_parent = await grafana_dst.get_folder("parent")
@@ -450,11 +448,11 @@ async def test_sync_to_nonexistent_parent(
 
     # Attempt sync with non-existent destination parent
     with pytest.raises(DestinationParentNotFoundError) as exc_info:
-        await sync(
+        await GrafanaSync(
             src_grafana=grafana,
             dst_grafana=grafana_dst,
             dst_parent_uid="nonexistent",
-        )
+        ).sync()
 
     assert exc_info.value.parent_uid == "nonexistent"
     assert (
@@ -478,11 +476,11 @@ async def test_sync_root_dashboard_to_destination_parent(
     await grafana_dst.create_folder(title="Destination Parent", uid="dst_parent")
 
     # Sync with dst_parent_uid
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         dst_parent_uid="dst_parent",
-    )
+    ).sync()
 
     # Verify dashboard was moved to destination parent folder
     dst_dash = await grafana_dst.get_dashboard("dash1")
@@ -512,13 +510,11 @@ async def test_sync_with_pruning_and_destination_parent(
     await grafana_dst.update_dashboard(dashboard3, folder_uid="src_folder")
 
     # Sync with pruning enabled and destination parent specified
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-        folder_uid="src_folder",
-        prune=True,
         dst_parent_uid="dst_parent",
-    )
+    ).sync(folder_uid="src_folder", prune=True)
 
     # Verify dashboards 1 and 2 exist in destination under the correct folder
     dst_db1 = await grafana_dst.get_dashboard("dash1")
@@ -562,11 +558,11 @@ async def test_move_folders_with_destination_parent(
     )  # Wrong parent
 
     # Sync with destination parent
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         dst_parent_uid="dst_parent",
-    )
+    ).sync()
 
     # Verify final folder structure
     dst_parent = await grafana_dst.get_folder("parent")
@@ -601,11 +597,11 @@ async def test_sync_existing_general_dashboard_to_destination_parent(
     await grafana_dst.create_folder(title="Destination Parent", uid="dst_parent")
 
     # Sync with dst_parent_uid
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
         dst_parent_uid="dst_parent",
-    )
+    ).sync()
 
     # Verify dashboard was moved to destination parent folder
     dst_dash_after = await grafana_dst.get_dashboard("dash1")
@@ -632,12 +628,10 @@ async def test_sync_with_pruning(grafana: GrafanaClient, grafana_dst: GrafanaCli
     dashboard3 = DashboardData(uid="dash3", title="Dashboard 3")
     await grafana_dst.update_dashboard(dashboard3, folder_uid="folder1")
 
-    await sync(
+    await GrafanaSync(
         src_grafana=grafana,
         dst_grafana=grafana_dst,
-        folder_uid="folder1",
-        prune=True,
-    )
+    ).sync(folder_uid="folder1", prune=True)
 
     # Verify dashboards 1 and 2 exist in destination
     dst_db1 = await grafana_dst.get_dashboard("dash1")
@@ -651,3 +645,54 @@ async def test_sync_with_pruning(grafana: GrafanaClient, grafana_dst: GrafanaCli
         raise AssertionError("Dashboard 3 should have been pruned")
     except Exception:
         pass
+
+
+async def test_sync_table_output(grafana: GrafanaClient, grafana_dst: GrafanaClient):
+    await grafana.create_datasource(
+        DatasourceDefinition(
+            name="prometheus",
+            uid="P1809F7CD0C75ACF3",
+            type="prometheus",
+            access="proxy",
+        )
+    )
+
+    await grafana_dst.create_datasource(
+        DatasourceDefinition(
+            name="prometheus-dst",
+            uid="my-new-uid",
+            type="prometheus",
+            access="proxy",
+        )
+    )
+
+    table = await GrafanaSync(
+        src_grafana=grafana,
+        dst_grafana=grafana_dst,
+        migrate_datasources=True,
+    ).get_datasource_mapping_cli_table()
+
+    file = io.StringIO()
+
+    console = Console(
+        width=60,
+        force_terminal=True,
+        file=file,
+        color_system=None,
+        _environ={"TERM": "dumb"},
+    )
+
+    table.box = box.ASCII
+
+    console.print(table)
+
+    assert (
+        file.getvalue()
+        == """                              Data Source Mapping                               
++------------------------------------------------------------------------------+
+| SRC Name   | SRC UID    | SRC Type   | DST Name    | DST UID    | DST Type   |
+|------------+------------+------------+-------------+------------+------------|
+| prometheus | P1809F7CD… | prometheus | prometheus… | my-new-uid | prometheus |
++------------------------------------------------------------------------------+
+"""
+    )
