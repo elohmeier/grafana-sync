@@ -37,3 +37,29 @@ def test_parse_empty_template_current():
             "title": "My Dashboard",
         }
     )
+
+
+def test_parse_variable_template_datasource():
+    DashboardData.model_validate(
+        {
+            "templating": {
+                "list": [
+                    {
+                        "current": {"text": "prometheus", "value": "prometheus"},
+                        "name": "datasource",
+                        "query": "prometheus",
+                        "type": "datasource",
+                    },
+                    {
+                        "current": {},
+                        "datasource": "$datasource",
+                        "name": "Cluster",
+                        "query": "label_values(kube_pod_info,cluster)",
+                        "type": "query",
+                    },
+                ]
+            },
+            "uid": "dashboard",
+            "title": "My Dashboard",
+        }
+    )

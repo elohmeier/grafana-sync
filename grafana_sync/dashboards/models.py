@@ -112,19 +112,23 @@ class TemplatingItemCurrent(BaseModel):
 
 class TemplatingItem(BaseModel):
     current: TemplatingItemCurrent | None = None
-    datasource: DataSource | None = None
+    datasource: DataSource | str | None = None
     type_: str = Field(alias="type")
 
     model_config = ConfigDict(extra="allow")
 
     @property
     def all_datasources(self) -> Generator[DataSource, None, None]:
-        if self.datasource is not None:
+        if self.datasource is not None and isinstance(self.datasource, DataSource):
             yield self.datasource
 
     @property
     def is_datasource(self) -> bool:
         return self.type_ == "datasource"
+
+    @property
+    def has_variable_datasource(self) -> bool:
+        return isinstance(self.datasource, str) and self.datasource.startswith("$")
 
 
 class Templating(BaseModel):
