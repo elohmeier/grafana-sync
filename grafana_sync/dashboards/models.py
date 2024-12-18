@@ -35,8 +35,9 @@ class DataSource(BaseModel):
 
 class Target(BaseModel):
     expr: str | None = None
-    ref_id: str | None = Field(alias="ref_id", default=None)
+    ref_id: str | None = Field(alias="refId", default=None)
     datasource: DataSource | None = None
+    ds_type: str | None = Field(alias="dsType", default=None)
 
     model_config = ConfigDict(extra="allow")
 
@@ -126,6 +127,7 @@ class TemplatingItemQuery(BaseModel):
 class TemplatingItem(BaseModel):
     current: TemplatingItemCurrent | None = None
     name: str | None = None
+    label: str | None = None
     query: str | TemplatingItemQuery | None = None
     datasource: DataSource | str | None = None
     type_: str = Field(alias="type")
@@ -172,6 +174,18 @@ class Templating(BaseModel):
 
         return ct
 
+    def upgrade_datasources(self, ds_config: Mapping[str, DataSource]) -> None:
+        """Upgrade string-datasource into an datasource object.
+
+        Older Grafana versions used to put a string (name) into the datasource field.
+        """
+        if self.list_ is None:
+            return
+
+        for t in self.list_:
+            if isinstance(t.datasource, str) and not t.has_variable_datasource:
+                t.datasource = ds_config[t.datasource]
+
 
 class DashboardData(BaseModel):
     uid: str
@@ -204,6 +218,9 @@ class DashboardData(BaseModel):
         if self.panels is not None:
             for p in self.panels:
                 p.upgrade_datasource(ds_config)
+
+        if self.templating is not None:
+            self.templating.upgrade_datasources(ds_config)
 
     def update_datasources(
         self,

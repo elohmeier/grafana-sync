@@ -123,7 +123,7 @@ def test_upgrade_variable_template_datasource():
                 targets=[
                     Target(
                         expr="sum(up == 1)",
-                        ref_id="A",
+                        refId="A",
                     )
                 ],
             )
@@ -163,7 +163,7 @@ def test_upgrade_variable_template_datasource():
                 targets=[
                     Target(
                         expr="sum(up == 1)",
-                        ref_id="A",
+                        refId="A",
                     )
                 ],
             )
@@ -183,6 +183,70 @@ def test_upgrade_variable_template_datasource():
                     datasource="$datasource",
                     name="Cluster",
                     query="label_values(kube_pod_info,cluster)",
+                    type="query",
+                ),
+            ]
+        ),
+    )
+
+
+def test_upgrade_string_datasource():
+    db = DashboardData(
+        uid="test",
+        title="test",
+        panels=[
+            Panel(
+                datasource="My InfluxDB",
+                targets=[
+                    Target(
+                        dsType="influxdb",
+                        refId="A",
+                    )
+                ],
+            )
+        ],
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    current=TemplatingItemCurrent(text="dev", value="dev"),
+                    datasource="My InfluxDB",
+                    label="Environment",
+                    name="datasource",
+                    query='SHOW TAG VALUES WITH KEY ="environment"',
+                    type="query",
+                ),
+            ]
+        ),
+    )
+
+    db.upgrade_datasources(
+        ds_config={
+            "My InfluxDB": DataSource(uid="influx", type="influxdb"),
+        }
+    )
+
+    assert db == DashboardData(
+        uid="test",
+        title="test",
+        panels=[
+            Panel(
+                datasource=DataSource(type="influxdb", uid="influx"),
+                targets=[
+                    Target(
+                        dsType="influxdb",
+                        refId="A",
+                    )
+                ],
+            )
+        ],
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    current=TemplatingItemCurrent(text="dev", value="dev"),
+                    datasource=DataSource(type="influxdb", uid="influx"),
+                    label="Environment",
+                    name="datasource",
+                    query='SHOW TAG VALUES WITH KEY ="environment"',
                     type="query",
                 ),
             ]
