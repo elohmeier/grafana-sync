@@ -364,6 +364,59 @@ async def backup_folders(
                 await backup.backup_dashboard(dashboard.uid)
 
 
+@cli.command(
+    name="generate",
+    help="Generate random test folders and dashboards in Grafana instance.",
+)
+@click.option(
+    "--num-folders",
+    type=click.IntRange(min=0),
+    default=5,
+    help="Number of top-level folders to generate (min: 0)",
+)
+@click.option(
+    "--max-subfolders",
+    type=int,
+    default=3,
+    help="Maximum number of subfolders per folder",
+)
+@click.option(
+    "--max-depth",
+    type=int,
+    default=2,
+    help="Maximum folder nesting depth",
+)
+@click.option(
+    "--max-dashboards",
+    type=int,
+    default=3,
+    help="Maximum number of dashboards per folder",
+)
+@click.pass_context
+async def generate_test_data(
+    ctx: click.Context,
+    num_folders: int,
+    max_subfolders: int,
+    max_depth: int,
+    max_dashboards: int,
+) -> None:
+    try:
+        grafana = ctx.ensure_object(GrafanaClient)
+        await grafana.generate_test_data(
+            num_folders=num_folders,
+            max_subfolders=max_subfolders,
+            max_depth=max_depth,
+            max_dashboards=max_dashboards,
+        )
+        click.echo("Test data generation complete")
+    except ImportError as ex:
+        msg = (
+            "Faker package is required for test data generation. "
+            "Install it with: pip install 'grafana-sync[generate]'"
+        )
+        raise click.UsageError(msg) from ex
+
+
 @cli.command(name="restore")
 @click.option(
     "-f",

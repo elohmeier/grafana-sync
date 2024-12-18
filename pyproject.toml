@@ -29,6 +29,7 @@ grafana-sync = "grafana_sync.cli:cli"
 
 [project.optional-dependencies]
 test = ["pytest", "pytest-docker", "pytest-asyncio"]
+generate = ["faker>=20.1.0"]
 
 [tool.pytest.ini_options]
 markers = ["docker"]

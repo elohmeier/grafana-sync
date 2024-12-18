@@ -109,7 +109,10 @@
               editableOverlay = workspace.mkEditablePyprojectOverlay { root = "$REPO_ROOT"; };
               editablePythonSet = pythonSet.overrideScope editableOverlay;
               virtualenv = editablePythonSet.mkVirtualEnv "grafana-sync-dev-env" {
-                grafana-sync = [ "test" ];
+                grafana-sync = [
+                  "generate"
+                  "test"
+                ];
               };
             in
             pkgs.mkShell {

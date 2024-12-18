@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import ssl
 from collections.abc import AsyncGenerator
 from typing import Self
@@ -469,6 +470,58 @@ class GrafanaClient:
             for folder in subfolders.root:
                 async for res in self.walk(folder.uid, recursive, include_dashboards):
                     yield res
+
+    async def generate_test_data(
+        self,
+        num_folders: int = 5,
+        max_subfolders: int = 3,
+        max_depth: int = 2,
+        max_dashboards: int = 3,
+    ) -> None:
+        """Generate random test folders and dashboards.
+
+        Args:
+            num_folders: Number of top-level folders to create
+            max_subfolders: Maximum number of subfolders per folder
+            max_depth: Maximum folder nesting depth
+            max_dashboards: Maximum number of dashboards per folder
+        """
+        from faker import Faker
+
+        fake = Faker()
+
+        async def create_folder_tree(depth: int, parent_uid: str | None = None) -> None:
+            if depth > max_depth:
+                return
+
+            # Create random number of folders at this level
+            num_subfolders = random.randint(0, max_subfolders)
+            for _ in range(num_subfolders):
+                title = fake.unique.company()
+                folder = await self.create_folder(title=title, parent_uid=parent_uid)
+
+                # Create random dashboards in this folder
+                num_dash = random.randint(0, max_dashboards)
+                for _ in range(num_dash):
+                    dash_title = fake.catch_phrase()
+                    dashboard = {
+                        "uid": fake.unique.uuid4(),
+                        "title": dash_title,
+                        "tags": [fake.word() for _ in range(random.randint(0, 3))],
+                        "timezone": "browser",
+                        "panels": [],
+                        "version": 1,
+                    }
+                    await self.update_dashboard(
+                        DashboardData.model_validate(dashboard), folder_uid=folder.uid
+                    )
+
+                # Recursively create subfolders
+                await create_folder_tree(depth + 1, folder.uid)
+
+        # Create top-level folders
+        for _ in range(num_folders):
+            await create_folder_tree(0, None)
 
     async def check_pristine(self) -> None:
         datasources = (await self.get_datasources()).root
