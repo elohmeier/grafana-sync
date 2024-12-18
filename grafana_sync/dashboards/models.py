@@ -105,6 +105,18 @@ class Panel(BaseModel):
 class TemplatingItemCurrent(BaseModel):
     text: str | list[str] | None = None
     value: str | list[str] | None = None
+    selected: bool | None = None
+
+    model_config = ConfigDict(extra="allow")
+
+    def upgrade_datasource(self, ds_config: Mapping[str, DataSource]) -> None:
+        if not isinstance(self.text, str):
+            return
+
+        if not isinstance(self.value, str):
+            return
+
+        self.value = ds_config[self.value].uid
 
     def update_datasource(self, ds_map: Mapping[str, DSRef], strict=False) -> bool:
         if not isinstance(self.text, str):
@@ -147,6 +159,18 @@ class TemplatingItem(BaseModel):
     def has_variable_datasource(self) -> bool:
         return isinstance(self.datasource, str) and self.datasource.startswith("$")
 
+    def upgrade_datasources(self, ds_config: Mapping[str, DataSource]) -> None:
+        if self.type_ == "datasource" and self.current is not None:
+            self.current.upgrade_datasource(ds_config)
+
+        if (
+            self.type_ == "query"
+            and self.datasource is not None
+            and isinstance(self.datasource, str)
+            and not self.has_variable_datasource
+        ):
+            self.datasource = ds_config[self.datasource]
+
     def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
         ct = 0
 
@@ -179,6 +203,17 @@ class Templating(BaseModel):
             for t in self.list_:
                 yield from t.all_datasources
 
+    def upgrade_datasources(self, ds_config: Mapping[str, DataSource]) -> None:
+        """Upgrade string-datasource into an datasource object.
+
+        Older Grafana versions used to put a string (name) into the datasource field.
+        """
+        if self.list_ is None:
+            return
+
+        for t in self.list_:
+            t.upgrade_datasources(ds_config)
+
     def update_datasources(self, ds_map: Mapping[str, DSRef], strict=False) -> int:
         if self.list_ is None:
             return 0
@@ -189,18 +224,6 @@ class Templating(BaseModel):
             ct += t.update_datasources(ds_map, strict)
 
         return ct
-
-    def upgrade_datasources(self, ds_config: Mapping[str, DataSource]) -> None:
-        """Upgrade string-datasource into an datasource object.
-
-        Older Grafana versions used to put a string (name) into the datasource field.
-        """
-        if self.list_ is None:
-            return
-
-        for t in self.list_:
-            if isinstance(t.datasource, str) and not t.has_variable_datasource:
-                t.datasource = ds_config[t.datasource]
 
 
 class DashboardData(BaseModel):

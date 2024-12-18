@@ -132,7 +132,7 @@ def test_upgrade_variable_template_datasource():
             list=[
                 TemplatingItem(
                     current=TemplatingItemCurrent(
-                        text="prometheus", value="prometheus"
+                        text="Old Prometheus", value="Old Prometheus"
                     ),
                     name="datasource",
                     query="prometheus",
@@ -149,9 +149,12 @@ def test_upgrade_variable_template_datasource():
         ),
     )
 
-    db.upgrade_datasources(ds_config={})
+    db.upgrade_datasources(
+        ds_config={"Old Prometheus": DataSource(type="prometheus", uid="old-uid")}
+    )
+
     db.update_datasources(
-        ds_map={"prometheus": DSRef(uid="my-new-uid", name="my prometheus")}
+        ds_map={"old-uid": DSRef(uid="new-uid", name="New Prometheus")}
     )
 
     assert db == DashboardData(
@@ -172,7 +175,7 @@ def test_upgrade_variable_template_datasource():
             list=[
                 TemplatingItem(
                     current=TemplatingItemCurrent(
-                        text="my prometheus", value="my-new-uid"
+                        text="New Prometheus", value="new-uid"
                     ),
                     name="datasource",
                     query="prometheus",
@@ -284,7 +287,7 @@ def test_upgrade_nested_string_datasource():
     )
 
 
-def test_map_template_datasource():
+def test_map_template_query_datasource():
     db = DashboardData(
         uid="test",
         title="test",
@@ -312,6 +315,73 @@ def test_map_template_datasource():
                     name="Cluster",
                     query="label_values(kube_pod_info,cluster)",
                     type="query",
+                ),
+            ]
+        ),
+    )
+
+
+def test_map_template_datasource_name():
+    db = DashboardData(
+        uid="test",
+        title="test",
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    current=TemplatingItemCurrent(
+                        selected=False,
+                        text="My Old Datasource",
+                        value="My Old Datasource",
+                    ),
+                    name="datasource",
+                    query="influxdb",
+                    type="datasource",
+                ),
+            ]
+        ),
+    )
+
+    db.upgrade_datasources(
+        {"My Old Datasource": DataSource(uid="old-uid", type="influxdb")}
+    )
+
+    assert db == DashboardData(
+        uid="test",
+        title="test",
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    current=TemplatingItemCurrent(
+                        selected=False,
+                        text="My Old Datasource",
+                        value="old-uid",
+                    ),
+                    name="datasource",
+                    query="influxdb",
+                    type="datasource",
+                ),
+            ]
+        ),
+    )
+
+    db.update_datasources(
+        ds_map={"old-uid": DSRef(uid="new-uid", name="My New Datasource")}
+    )
+
+    assert db == DashboardData(
+        uid="test",
+        title="test",
+        templating=Templating(
+            list=[
+                TemplatingItem(
+                    current=TemplatingItemCurrent(
+                        selected=False,
+                        text="My New Datasource",
+                        value="new-uid",
+                    ),
+                    name="datasource",
+                    query="influxdb",
+                    type="datasource",
                 ),
             ]
         ),
