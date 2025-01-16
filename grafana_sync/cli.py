@@ -269,6 +269,11 @@ async def list_folders(
     is_flag=True,
     help="Migrate dashboard datasource references to match destination",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Only print modifying changes",
+)
 @click.pass_context
 async def sync_folders(
     ctx: click.Context,
@@ -284,6 +289,7 @@ async def sync_folders(
     relocate_dashboards: bool,
     dst_parent_uid: str | None,
     migrate_datasources: bool,
+    dry_run: bool,
 ) -> None:
     """Sync folders from source to destination Grafana instance."""
     src_grafana = ctx.ensure_object(GrafanaClient)
@@ -309,6 +315,7 @@ async def sync_folders(
             prune=prune,
             relocate_folders=relocate_folders,
             relocate_dashboards=relocate_dashboards,
+            dry_run=dry_run,
         )
 
 
