@@ -116,7 +116,8 @@ class TemplatingItemCurrent(BaseModel):
         if not isinstance(self.value, str):
             return
 
-        self.value = ds_config[self.value].uid
+        if ds := ds_config.get(self.value, None):
+            self.value = ds.uid
 
     def update_datasource(self, ds_map: Mapping[str, DSRef], strict=False) -> bool:
         if not isinstance(self.text, str):
