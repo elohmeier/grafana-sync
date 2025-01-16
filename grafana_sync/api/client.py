@@ -436,6 +436,30 @@ class GrafanaClient:
         response = await self.client.delete(f"/api/reports/{report_id}")
         self._handle_error(response)
 
+    async def logout_all_users(self, skip_username: str | None = None) -> None:
+        """Logout all users from Grafana by invalidating their sessions.
+
+        This fetches all users and logs each one out individually.
+
+        Args:
+            skip_username: Optional username to skip (e.g. current user)
+
+        Raises:
+            GrafanaApiError: If the request fails or user doesn't have admin privileges
+        """
+        # Get all users
+        response = await self.client.get("/api/users")
+        self._handle_error(response)
+        users = response.json()
+
+        # Logout each user individually
+        for user in users:
+            if skip_username and user["login"] == skip_username:
+                continue
+            user_id = user["id"]
+            response = await self.client.post(f"/api/admin/users/{user_id}/logout")
+            self._handle_error(response)
+
     async def walk(
         self,
         folder_uid: str = FOLDER_GENERAL,

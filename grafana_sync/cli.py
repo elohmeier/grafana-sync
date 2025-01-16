@@ -496,3 +496,20 @@ async def restore_folders(
     else:
         msg = "Either --recursive, --folder-uid or --dashboard-uid must be specified"
         raise click.UsageError(msg)
+
+
+@cli.command(name="logout-all")
+@click.confirmation_option(
+    prompt="Are you sure you want to logout all users?",
+    help="This will invalidate all active sessions and force all users to login again",
+)
+@click.option(
+    "--skip-username",
+    help="Username to skip (e.g. current user)",
+)
+@click.pass_context
+async def logout_all_users(ctx: click.Context, skip_username: str | None) -> None:
+    """Logout all users from Grafana by invalidating all active sessions."""
+    grafana = ctx.ensure_object(GrafanaClient)
+    await grafana.logout_all_users(skip_username)
+    click.echo("All users have been logged out")
