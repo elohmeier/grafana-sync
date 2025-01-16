@@ -42,6 +42,14 @@ logger = logging.getLogger(__name__)
     help="Set logging level",
 )
 @click.option(
+    "--httpx-log-level",
+    type=click.Choice(
+        ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], case_sensitive=False
+    ),
+    default="WARNING",
+    help="Set httpx logging level",
+)
+@click.option(
     "--api-key",
     envvar="GRAFANA_API_KEY",
     help="Grafana API key for token authentication",
@@ -64,9 +72,14 @@ async def cli(
     username: str | None,
     password: str | None,
     log_level: str,
+    httpx_log_level: str,
 ):
     """Sync Grafana dashboards and folders."""
     logging.basicConfig(level=getattr(logging, log_level.upper()))
+
+    # Set httpx logging level
+    logging.getLogger("httpx").setLevel(getattr(logging, httpx_log_level.upper()))
+
     try:
         ctx.obj = await ctx.with_async_resource(
             GrafanaClient(url, api_key, username, password)
