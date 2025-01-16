@@ -6,7 +6,10 @@ from grafana_sync.api.client import FOLDER_GENERAL, FOLDER_SHAREDWITHME
 from grafana_sync.api.models import DatasourceDefinition
 from grafana_sync.dashboards.models import DataSource, DSRef
 from grafana_sync.datasource_mapper import map_datasources
-from grafana_sync.exceptions import DestinationParentNotFoundError
+from grafana_sync.exceptions import (
+    DashboardNotFoundError,
+    DestinationParentNotFoundError,
+)
 
 if TYPE_CHECKING:
     from rich.table import Table
@@ -256,82 +259,71 @@ class GrafanaSync:
         folder_uid: str | None = None,
         relocate=True,
         dry_run: bool = False,
-    ) -> bool:
-        """Sync a single dashboard from source to destination Grafana instance.
+    ) -> None:
+        """Sync a single dashboard from source to destination Grafana instance."""
+        # Get dashboard from source
+        src_dashboard = await self.src_grafana.get_dashboard(dashboard_uid)
+        if not src_dashboard:
+            logger.error("Dashboard %s not found in source", dashboard_uid)
+            raise DashboardNotFoundError(dashboard_uid)
 
-        Returns True if sync was successful, False otherwise.
-        """
-        try:
-            # Get dashboard from source
-            src_dashboard = await self.src_grafana.get_dashboard(dashboard_uid)
-            if not src_dashboard:
-                logger.error("Dashboard %s not found in source", dashboard_uid)
-                return False
+        src_data = src_dashboard.dashboard
 
-            src_data = src_dashboard.dashboard
+        if self.migrate_datasources:
+            ds_map = await self.get_ds_map()
+            src_ds_config = await self.get_src_ds_config()
+            src_data.upgrade_datasources(src_ds_config)
+            src_data.update_datasources(ds_map)
 
-            if self.migrate_datasources:
-                ds_map = await self.get_ds_map()
-                src_ds_config = await self.get_src_ds_config()
-                src_data.upgrade_datasources(src_ds_config)
-                src_data.update_datasources(ds_map)
-
-            if folder_uid == FOLDER_GENERAL:
-                target_folder = (
-                    self.dst_parent_uid
-                    if self.dst_parent_uid != FOLDER_GENERAL
-                    else None
-                )
-            else:
-                target_folder = folder_uid
-
-            # Check if dashboard exists in destination
-            try:
-                dst_dashboard = await self.dst_grafana.get_dashboard(dashboard_uid)
-            except Exception:
-                # Dashboard doesn't exist in destination
-                dst_dashboard = None
-            else:
-                # Compare dashboards after cleaning
-                if self._clean_dashboard_for_comparison(
-                    src_data
-                ) == self._clean_dashboard_for_comparison(dst_dashboard.dashboard) and (
-                    target_folder == dst_dashboard.meta.folder_uid or not relocate
-                ):
-                    logger.info(
-                        "Dashboard '%s' (uid: %s) is identical, skipping update",
-                        src_data.title,
-                        dashboard_uid,
-                    )
-                    return True
-
-            if dst_dashboard is not None and not relocate:
-                target_folder = dst_dashboard.meta.folder_uid
-
-            if dry_run:
-                logger.info(
-                    "Would %s dashboard '%s' (uid: %s) to folder '%s'",
-                    "update" if dst_dashboard else "create",
-                    src_data.title,
-                    dashboard_uid,
-                    target_folder or "General",
-                )
-            else:
-                await self.dst_grafana.update_dashboard(
-                    src_data,
-                    folder_uid=target_folder,
-                )
-                logger.info(
-                    "%s dashboard '%s' (uid: %s)",
-                    "Updated" if dst_dashboard else "Created",
-                    src_data.title,
-                    dashboard_uid,
-                )
-        except Exception:
-            logger.exception("Failed to sync dashboard %s", dashboard_uid)
-            return False
+        if folder_uid == FOLDER_GENERAL:
+            target_folder = (
+                self.dst_parent_uid if self.dst_parent_uid != FOLDER_GENERAL else None
+            )
         else:
-            return True
+            target_folder = folder_uid
+
+        # Check if dashboard exists in destination
+        try:
+            dst_dashboard = await self.dst_grafana.get_dashboard(dashboard_uid)
+        except Exception:
+            # Dashboard doesn't exist in destination
+            dst_dashboard = None
+        else:
+            # Compare dashboards after cleaning
+            if self._clean_dashboard_for_comparison(
+                src_data
+            ) == self._clean_dashboard_for_comparison(dst_dashboard.dashboard) and (
+                target_folder == dst_dashboard.meta.folder_uid or not relocate
+            ):
+                logger.info(
+                    "Dashboard '%s' (uid: %s) is identical, skipping update",
+                    src_data.title,
+                    dashboard_uid,
+                )
+                return
+
+        if dst_dashboard is not None and not relocate:
+            target_folder = dst_dashboard.meta.folder_uid
+
+        if dry_run:
+            logger.info(
+                "Would %s dashboard '%s' (uid: %s) to folder '%s'",
+                "update" if dst_dashboard else "create",
+                src_data.title,
+                dashboard_uid,
+                target_folder or "General",
+            )
+        else:
+            await self.dst_grafana.update_dashboard(
+                src_data,
+                folder_uid=target_folder,
+            )
+            logger.info(
+                "%s dashboard '%s' (uid: %s)",
+                "Updated" if dst_dashboard else "Created",
+                src_data.title,
+                dashboard_uid,
+            )
 
     async def ensure_dst_parent_exists(self) -> None:
         """Verify destination parent exists if specified."""
@@ -382,13 +374,13 @@ class GrafanaSync:
             if include_dashboards:
                 for dashboard in dashboards.root:
                     dashboard_uid = dashboard.uid
-                    if await self.sync_dashboard(
+                    await self.sync_dashboard(
                         dashboard_uid,
                         root_uid,
                         relocate=relocate_dashboards,
                         dry_run=dry_run,
-                    ):
-                        src_dashboard_uids.add(dashboard_uid)
+                    )
+                    src_dashboard_uids.add(dashboard_uid)
 
         if relocate_folders:
             logger.info("relocation folders to updated parents if needed")

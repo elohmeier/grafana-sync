@@ -37,6 +37,15 @@ class ExistingDashboardsError(GrafanaNotPristineError):
         super().__init__(message)
 
 
+class DashboardNotFoundError(Exception):
+    """Raised when a dashboard is not found in the source Grafana instance."""
+
+    def __init__(self, dashboard_uid: str):
+        self.dashboard_uid = dashboard_uid
+        message = f"Dashboard with UID '{dashboard_uid}' not found"
+        super().__init__(message)
+
+
 class DestinationParentNotFoundError(Exception):
     """Raised when the specified destination parent folder does not exist."""
 
