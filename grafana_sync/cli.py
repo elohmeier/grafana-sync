@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 import asyncclick as click
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     from grafana_sync.api.models import (
+        GetDashboardResponse,
         GetFolderResponse,
         GetFoldersResponseItem,
         SearchDashboardsResponseItem,
@@ -113,6 +115,12 @@ async def cli(
     is_flag=True,
     help="Display output in JSON format",
 )
+@click.option(
+    "-e",
+    "--extended",
+    is_flag=True,
+    help="Show extended dashboard details including update information",
+)
 @click.pass_context
 async def list_folders(
     ctx: click.Context,
@@ -120,6 +128,7 @@ async def list_folders(
     recursive: bool,
     include_dashboards: bool,
     output_json: bool,
+    extended: bool,
 ) -> None:
     """List folders in a Grafana instance."""
     grafana = ctx.ensure_object(GrafanaClient)
@@ -127,14 +136,44 @@ async def list_folders(
     class TreeDashboardItem:
         """Represents a dashboard item in the folder tree structure."""
 
-        def __init__(self, data: "SearchDashboardsResponseItem") -> None:
+        def __init__(
+            self,
+            data: "SearchDashboardsResponseItem",
+            extended_data: "GetDashboardResponse | None" = None,
+        ) -> None:
             """Initialize dashboard item with API response data."""
             self.data = data
+            self.extended_data = extended_data
 
         @property
         def label(self) -> str:
             """Get the display label for the dashboard."""
-            return f"📊 {self.data.title} ({self.data.uid})"
+            base_label = f"📊 {self.data.title} ({self.data.uid})"
+            if self.extended_data:
+                meta = self.extended_data.meta
+                # Parse the timestamp
+                now = datetime.now().astimezone()
+                delta = now - meta.updated
+
+                # Format relative time
+                if delta.days > 365:
+                    relative = f"{delta.days // 365} years ago"
+                elif delta.days > 30:
+                    relative = f"{delta.days // 30} months ago"
+                elif delta.days > 0:
+                    relative = f"{delta.days} days ago"
+                elif delta.seconds > 3600:
+                    relative = f"{delta.seconds // 3600} hours ago"
+                elif delta.seconds > 60:
+                    relative = f"{delta.seconds // 60} minutes ago"
+                else:
+                    relative = "just now"
+
+                updated = f" updated {relative}"
+                if meta.updated_by:
+                    updated += f" by {meta.updated_by}"
+                return f"{base_label}{updated}"
+            return base_label
 
         def to_tree(self, parent: Tree) -> None:
             """Add this dashboard as a node to the parent tree."""
@@ -207,7 +246,10 @@ async def list_folders(
                 root_node.children.append(itm)
 
         for dashboard in dashboards.root:
-            itm = TreeDashboardItem(dashboard)
+            extended_data = None
+            if extended:
+                extended_data = await grafana.get_dashboard(dashboard.uid)
+            itm = TreeDashboardItem(dashboard, extended_data)
             root_node.children.append(itm)
 
     main_node = folder_nodes[folder_uid]

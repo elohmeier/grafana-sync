@@ -1,3 +1,4 @@
+import datetime
 from collections.abc import Mapping
 from typing import Any
 
@@ -110,6 +111,10 @@ class UpdateDashboardResponse(BaseModel):
 
 class DashboardMeta(BaseModel):
     folder_uid: str = Field(alias="folderUid")
+    created: datetime.datetime
+    created_by: str = Field(alias="createdBy")
+    updated: datetime.datetime
+    updated_by: str = Field(alias="updatedBy")
 
     model_config = ConfigDict(extra="allow")
 
